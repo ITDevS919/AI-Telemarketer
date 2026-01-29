@@ -1,0 +1,438 @@
+Call Ended: SID=CA0432c0a013d57008c502897480d9b835, Start=2025-05-07 12:53:48.134628, End=2025-05-07 12:54:06.305945, Duration=18.17s, FinalState=HANGUP, LeadStatus=completed_other
+  [12:53:50] assistant: Hello! This is Isaac calling from Proactiv. We've been helping independent businesses like yours for 16 years compete effectively with larger organizations. Am I speaking with the business owner?
+  [12:54:06] user: Um, you are.
+--------------------
+Call Ended: SID=CA96211dd20acd92f7c494daa5995e9e51, Start=2025-05-07 13:07:08.625168, End=2025-05-07 13:07:57.393732, Duration=48.77s, FinalState=CALL_ENDED_ABRUPTLY, LeadStatus=disconnected
+  [13:07:10] assistant: Hi can I speak to the owner please?
+  [13:07:17] user: Speaking.
+  [13:07:22] user: Hello?
+  [13:07:32] user: So my first feedback on that opening line.
+  [13:07:37] user: It all sounds good, but the word please doesn't quite sound right.
+  [13:07:45] user: What's wrong with the way it's played?  It's just the tone.  Nothing to do with the police.
+  [13:07:54] user: So normally you wouldn't go down, you'd go up in your pitch.  You'd go, can I speak to Anna, please?  So you'd sort of go up rather than down.
+--------------------
+Call Ended: SID=CAd89243a844265e3bb5360feba5946506, Start=2025-05-07 13:10:30.561825, End=2025-05-07 13:10:46.890052, Duration=16.33s, FinalState=CALL_ENDED_ABRUPTLY, LeadStatus=disconnected
+  [13:10:32] assistant: Hi can I speak to the owner please?
+  [13:10:38] user: Yeah, of course, I'm speaking.
+  [13:10:44] user: That's 11-1.
+  [13:10:46] user: Thank you.
+--------------------
+Call Ended: SID=CA1a8ad11b8dc560e63ec2282994fc26b4, Start=2025-05-07 13:13:10.463525, End=2025-05-07 13:13:32.365039, Duration=21.90s, FinalState=CALL_ENDED_ABRUPTLY, LeadStatus=disconnected
+  [13:13:12] assistant: Hi can I speak to the owner please?
+  [13:13:17] user: Yeah, speaking.
+  [13:13:17] assistant: Hi can I speak to the owner please?
+  [13:13:23] user: Thank you for speaking.
+  [13:13:23] assistant: Hi can I speak to the owner please?
+  [13:13:30] user: Sorry, is this an AI robot?
+  [13:13:30] assistant: Hi can I speak to the owner please?
+  [13:13:32] user: Thank you.
+  [13:13:32] assistant: Hi can I speak to the owner please?
+--------------------
+Call Ended: SID=CAb0a77ccaec4417353875af3a683d64c4, Start=2025-05-07 13:14:53.851223, End=2025-05-07 13:15:03.851281, Duration=10.00s, FinalState=CALL_ENDED_ABRUPTLY, LeadStatus=disconnected
+  [13:14:55] assistant: Hi can I speak to the owner please?
+  [13:15:00] user: Thank you for speaking.
+  [13:15:00] assistant: Hi can I speak to the owner please?
+--------------------
+Call Ended: SID=CA92e49edb19b6921ffcf1deeb97aec41f, Start=2025-05-07 13:16:10.322616, End=2025-05-07 13:17:44.019582, Duration=93.70s, FinalState=CALL_ENDED_ABRUPTLY, LeadStatus=disconnected
+  [13:16:12] assistant: Hi can I speak to the owner please?
+  [13:16:17] user: Yeah, of course, speaking.
+  [13:16:20] assistant: I'm calling about some proven concepts that can help your business increase customer base. I'd like to speak with the business owner. Is that you I'm speaking with?
+  [13:16:32] user: Yeah, you asked me that already.  Yeah, speak him.
+  [13:16:33] assistant: Great. Our Managing Director has over 30 years' experience supporting independent businesses. He's developed several unique concepts that both increase customer base and reduce overheads. His most recent invention helps bring in more customers through word-of-mouth, for FREE. He found and addressed the main reasons why only a small percentage of people act on word-of-mouth recommendations and why that figure has been dropping. The results for businesses like yours have been spectacular. It's a real game-changer.
+  [13:17:10] user: Okay.
+  [13:17:10] assistant: Great. Our Managing Director has over 30 years' experience supporting independent businesses. He's developed several unique concepts that both increase customer base and reduce overheads. His most recent invention helps bring in more customers through word-of-mouth, for FREE. He found and addressed the main reasons why only a small percentage of people act on word-of-mouth recommendations and why that figure has been dropping. The results for businesses like yours have been spectacular. It's a real game-changer.
+  [13:17:12] user: run.
+  [13:17:12] assistant: Great. Our Managing Director has over 30 years' experience supporting independent businesses. He's developed several unique concepts that both increase customer base and reduce overheads. His most recent invention helps bring in more customers through word-of-mouth, for FREE. He found and addressed the main reasons why only a small percentage of people act on word-of-mouth recommendations and why that figure has been dropping. The results for businesses like yours have been spectacular. It's a real game-changer.
+--------------------
+Call Ended: SID=CA9c58c339ce0f9f59f42875f56eb960c4, Start=2025-05-07 13:42:10.851101, End=2025-05-07 13:42:47.169879, Duration=36.32s, FinalState=CALL_ENDED_ABRUPTLY, LeadStatus=disconnected
+  [13:42:12] assistant: Hi can I speak to the owner please?
+  [13:42:23] user: We can't get to the phone right now, but if you leave your name, number and reason for the call,  we'll get back to you as soon as possible. Thank you.
+  [13:42:23] assistant: I understand you'd like more information. Our service specifically helps businesses like yours attract more customers without spending on advertising. We've developed a unique system that increases word-of-mouth recommendations by addressing the psychological barriers that prevent people from referring others. Would you like to hear how this could work for your specific business?
+--------------------
+Call Ended: SID=CAacbc0d6ce3b46a897e7896a2a157b8dd, Start=2025-05-07 14:41:23.053488, End=2025-05-07 14:42:07.470786, Duration=44.42s, FinalState=CALL_ENDED_ABRUPTLY, LeadStatus=disconnected
+  [13:41:23] assistant: Hi can I speak to the owner please?
+  [13:41:31] assistant: # Action: LISTEN # Next States: IDENTIFY_SELF_AS_ISAAC, EXPLAIN_CALL_INTRODUCTORY, OWNER_ON_PHONE_REINTRODUCE, PITCH_INTEREST_TO_GATEKEEPER, AWAIT_OWNER_AVAILABILITY_RESPONSE, HANGUP_MM # Actual next state determined by Python logic.
+--------------------
+Call Ended: SID=CA2eb4168e908c8dae9a4b931b1a2e10c9, Start=2025-05-07 14:45:49.337427, End=2025-05-07 14:48:05.596100, Duration=136.26s, FinalState=CALL_ENDED_ABRUPTLY, LeadStatus=disconnected
+  [13:45:49] assistant: Hi can I speak to the owner please?
+  [13:46:12] assistant: Sorry, I didn't quite understand that. Could you please rephrase?
+--------------------
+Call Ended: SID=CA1222b0bd11eb6b0e0a10b484adac89bd, Start=2025-05-07 14:49:01.509730, End=2025-05-07 14:49:30.656710, Duration=29.15s, FinalState=CALL_ENDED_ABRUPTLY, LeadStatus=disconnected
+  [13:49:03] assistant: Hi can I speak to the owner please?
+--------------------
+Call Ended: SID=CAd01074cac63e60b63316a367dfc403ec, Start=2025-05-07 16:01:36.713923, End=2025-05-07 16:01:52.376522, Duration=15.66s, FinalState=CALL_ENDED_ABRUPTLY, LeadStatus=disconnected
+
+--------------------
+Call Ended: SID=CA006721796e7589cc898ff837df64ea8d, Start=2025-05-07 16:03:52.623231, End=2025-05-07 16:04:24.053713, Duration=31.43s, FinalState=CALL_ENDED_ABRUPTLY, LeadStatus=disconnected
+
+--------------------
+Call Ended: SID=CA375000372da0ba26b78e2a0a736a03a7, Start=2025-05-07 16:06:03.267552, End=2025-05-07 16:06:08.657236, Duration=5.39s, FinalState=44, LeadStatus=unknown
+  [15:06:03] assistant: Hi can I speak to the owner please?
+--------------------
+Call Ended: SID=CA3609798d4f2880ab76e75bc7654baa65, Start=2025-05-07 16:09:02.461387, End=2025-05-07 16:09:07.996181, Duration=5.53s, FinalState=44, LeadStatus=unknown
+  [15:09:02] assistant: Hi can I speak to the owner please?
+  [15:09:07] user: Yes.
+  [15:09:07] user: Yes.
+--------------------
+Call Ended: SID=CA9fbfb8f88a9f24ae53c873866d372020, Start=2025-05-07 16:11:30.001198, End=2025-05-07 16:11:35.980020, Duration=5.98s, FinalState=44, LeadStatus=unknown
+  [15:11:30] assistant: Hi can I speak to the owner please?
+  [15:11:35] user: Yes, you can.
+  [15:11:35] user: Yes, you can.
+--------------------
+Call Ended: SID=CAd3fab2322171437397810c706badd5f9, Start=2025-05-07 16:17:58.672425, End=2025-05-07 16:18:05.033547, Duration=6.36s, FinalState=44, LeadStatus=unknown
+  [15:17:59] assistant: Hi can I speak to the owner please?
+  [15:18:05] user: Yes, you can.
+  [15:18:05] user: Yes, you can.
+--------------------
+Call Ended: SID=CAcd60a9127b34b1b4a0038054e4958a62, Start=2025-05-07 16:43:04.272147, End=2025-05-07 16:43:31.687582, Duration=27.42s, FinalState=CALL_ENDED_ABRUPTLY, LeadStatus=disconnected
+  [15:43:04] assistant: Hi can I speak to the owner please?
+  [15:43:10] user: Yes.
+  [15:43:10] user: Yes.
+--------------------
+Call Ended: SID=CAbc83bd297854c67459ac1a850366ac2a, Start=2025-05-07 16:48:56.008123, End=2025-05-07 16:49:39.091890, Duration=43.08s, FinalState=CALL_ENDED_ABRUPTLY, LeadStatus=disconnected
+  [15:48:58] assistant: Hi can I speak to the owner please?
+  [15:49:04] user: Uh, yeah.
+  [15:49:04] user: Uh, yeah.
+--------------------
+Call Ended: SID=CAe6eeeb717e2914ff22488b0cdccf4c0a, Start=2025-05-07 16:52:45.869080, End=2025-05-07 16:53:16.990144, Duration=31.12s, FinalState=CALL_ENDED_ABRUPTLY, LeadStatus=disconnected
+  [15:52:47] assistant: Hi can I speak to the owner please?
+  [15:52:54] user: Yes, you can
+  [15:52:54] user: Yes, you can
+  [15:52:54] assistant: 
+  [15:53:00] user: Who is calling?
+  [15:53:00] user: Who is calling?
+--------------------
+Call Ended: SID=CAe00c4c82564ec0d6fcc651399d5e1640, Start=2025-05-07 17:00:37.927252, End=2025-05-07 17:01:00.433126, Duration=22.51s, FinalState=44, LeadStatus=unknown
+  [16:00:39] assistant: Hi can I speak to the owner please?
+  [16:00:45] user: Yes, you can
+  [16:00:45] user: Yes, you can
+  [16:00:45] assistant: It's Isaac.
+  [16:00:51] user: What's this about?
+  [16:00:51] user: What's this about?
+  [16:01:00] user: Hello.
+  [16:01:00] user: Hello.
+--------------------
+Call Ended: SID=CA8963a920b5c9023ab5350565e12f7eeb, Start=2025-05-07 19:16:50.335644, End=2025-05-07 19:16:55.364220, Duration=5.03s, FinalState=CALL_ENDED_ABRUPTLY, LeadStatus=disconnected
+  [18:16:52] assistant: Hi can I speak to the owner please?
+--------------------
+Call Ended: SID=CA5a04a5616adcd1244709da128878feea, Start=2025-05-07 19:17:21.026940, End=2025-05-07 19:17:39.217931, Duration=18.19s, FinalState=44, LeadStatus=unknown
+  [18:17:23] assistant: Hi can I speak to the owner please?
+  [18:17:28] user: Yes.
+  [18:17:28] user: Yes.
+  [18:17:28] assistant: It's Isaac.
+  [18:17:33] user: Uh, who is it?
+  [18:17:33] user: Uh, who is it?
+  [18:17:39] user: Thank you.
+  [18:17:39] user: Thank you.
+--------------------
+Call Ended: SID=CAdb3266147f27ed9e83f7a46aa964bde9, Start=2025-05-07 19:20:33.016601, End=2025-05-07 19:20:55.953997, Duration=22.94s, FinalState=44, LeadStatus=unknown
+  [18:20:35] assistant: Hi can I speak to the owner please?
+  [18:20:41] user: Yes, what for?
+  [18:20:41] user: Yes, what for?
+  [18:20:41] assistant: It's Isaac.
+  [18:20:47] user: What's this about?
+  [18:20:47] user: What's this about?
+  [18:20:55] user: Hello?
+  [18:20:55] user: Hello?
+--------------------
+Call Ended: SID=CA753793a29c474babaee796872e3b7194, Start=2025-05-07 19:35:42.230585, End=2025-05-07 19:36:06.230564, Duration=24.00s, FinalState=44, LeadStatus=unknown
+  [18:35:44] assistant: Hi can I speak to the owner please?
+  [18:35:50] user: Yes, you can.
+  [18:35:50] user: Yes, you can.
+  [18:35:50] assistant: It's Isaac.
+  [18:35:56] user: Who is calling?
+  [18:35:56] user: Who is calling?
+  [18:36:06] user: Hello?
+  [18:36:06] user: Hello?
+--------------------
+Call Ended: SID=CAdf85cb95bed52dc0e1d020011623de53, Start=2025-05-07 19:47:01.470296, End=2025-05-07 19:47:23.453198, Duration=21.98s, FinalState=44, LeadStatus=unknown
+  [18:47:03] assistant: Hi can I speak to the owner please?
+  [18:47:10] user: Yes, what for?
+  [18:47:10] user: Yes, what for?
+  [18:47:10] assistant: It's Isaac.
+  [18:47:16] user: Uh, who is.
+  [18:47:16] user: Uh, who is.
+  [18:47:23] user: Hello?
+  [18:47:23] user: Hello?
+--------------------
+Call Ended: SID=CA3490c84dfd829a8bc208b0c2af47a94b, Start=2025-05-07 19:51:45.791274, End=2025-05-07 19:52:10.326672, Duration=24.54s, FinalState=44, LeadStatus=unknown
+  [18:51:47] assistant: Hi can I speak to the owner please?
+  [18:51:57] user: Yes, you can.  Please be.  Please be a minute.
+  [18:51:57] user: Yes, you can.  Please be.  Please be a minute.
+  [18:51:57] assistant: It's Isaac.
+  [18:52:03] user: What are you calling for?
+  [18:52:03] user: What are you calling for?
+  [18:52:10] user: Hello?
+  [18:52:10] user: Hello?
+--------------------
+Call Ended: SID=CAaa0c5d2ba08982a5a55591a02a07c5f2, Start=2025-05-07 19:54:36.915226, End=2025-05-07 19:54:56.520147, Duration=19.60s, FinalState=44, LeadStatus=unknown
+  [18:54:38] assistant: Hi can I speak to the owner please?
+  [18:54:45] user: Yes, one moment
+  [18:54:45] user: Yes, one moment
+  [18:54:45] assistant: It's Isaac.
+  [18:54:51] user: Hello
+  [18:54:51] user: Hello
+  [18:54:56] user: is calling
+  [18:54:56] user: is calling
+--------------------
+Call Ended: SID=CA8f3793a1964005742f0e166a00c3b035, Start=2025-05-07 19:55:55.009754, End=2025-05-07 19:56:13.094671, Duration=18.08s, FinalState=44, LeadStatus=unknown
+  [18:55:57] assistant: Hi can I speak to the owner please?
+  [18:56:02] user: Yeah
+  [18:56:02] user: Yeah
+  [18:56:02] assistant: It's Isaac.
+  [18:56:07] user: Hello?
+  [18:56:07] user: Hello?
+  [18:56:13] user: Hello, Isaac.
+  [18:56:13] user: Hello, Isaac.
+--------------------
+Call Ended: SID=CA4fe7f8967b005ff72b6a9f2fa5a57ec0, Start=2025-05-07 20:10:27.623118, End=2025-05-07 20:10:34.907896, Duration=7.28s, FinalState=44, LeadStatus=unknown
+  [19:10:29] assistant: Hi can I speak to the owner please?
+  [19:10:34] user: Yes.
+  [19:10:34] user: Yes.
+--------------------
+Call Ended: SID=CAe4e79c5bbb12ac6c1eae34f9196d2829, Start=2025-05-07 20:31:18.421109, End=2025-05-07 20:32:14.814758, Duration=56.39s, FinalState=CALL_ENDED_ABRUPTLY, LeadStatus=disconnected
+  [19:31:20] assistant: Hi can I speak to the owner please?
+  [19:31:25] user: Yes.
+  [19:31:25] user: Yes.
+  [19:31:32] user: Hello?
+  [19:31:32] user: Hello?
+  [19:31:32] assistant: Okay, I'll wait for you to get the owner. Thank you.
+  [19:31:39] user: Nice.
+  [19:31:39] user: Nice.
+  [19:31:48] user: Hello?
+  [19:31:48] user: Hello?
+  [19:31:53] assistant: Oh, Hi {{ state_machine.owner_name | default: '' }}, lovely to meet you.
+  [19:31:55] user: I love you.
+  [19:31:55] user: I love you.
+--------------------
+Call Ended: SID=CAc204371bfce6b7ac1c2d1863d036fec3, Start=2025-05-07 20:41:19.605633, End=2025-05-07 20:42:10.091449, Duration=50.49s, FinalState=CALL_ENDED_ABRUPTLY, LeadStatus=disconnected
+  [19:41:21] assistant: Hi can I speak to the owner please?
+  [19:41:27] user: Yes, you can
+  [19:41:27] user: Yes, you can
+  [19:41:29] user: one moment.
+  [19:41:29] user: one moment.
+  [19:41:29] assistant: Okay, I'll wait for you to get the owner. Thank you.
+  [19:41:37] user: Hello? Who is this?
+  [19:41:37] user: Hello? Who is this?
+  [19:41:47] user: Hello?
+  [19:41:47] user: Hello?
+--------------------
+Call Ended: SID=CA1f7613618391b2ebf09a5546eb452574, Start=2025-05-07 20:54:56.515966, End=2025-05-07 20:55:08.109984, Duration=11.59s, FinalState=CALL_ENDED_ABRUPTLY, LeadStatus=disconnected
+  [19:54:58] assistant: Hi can I speak to the owner please?
+--------------------
+Call Ended: SID=CAe89bcdea4d3a29355405d7ac72934c90, Start=2025-05-07 20:55:23.092718, End=2025-05-07 20:57:45.009110, Duration=141.92s, FinalState=CALL_ENDED_ABRUPTLY, LeadStatus=disconnected
+  [19:55:25] assistant: Hi can I speak to the owner please?
+  [19:55:31] user: Uh, yes.
+  [19:55:31] user: Uh, yes.
+  [19:55:31] assistant: Great. Are you the owner, please?
+  [19:55:32] user: One moment.
+  [19:55:32] user: One moment.
+  [19:55:32] assistant: Okay, I'll wait for you to get the owner. Thank you.
+  [19:55:42] user: Yes, I'm the owner. What's this about?
+  [19:55:42] user: Yes, I'm the owner. What's this about?
+  [19:55:42] assistant: Oh, it's nothing serious. This is a very quick introductory call. My name is Isaac from Proactiv. Sorry, what's your name, sir?
+  [19:55:53] user: I'm Michael.
+  [19:55:53] user: I'm Michael.
+  [19:57:35] user: Can I speak to the owner please?
+  [19:57:35] user: Can I speak to the owner please?
+  [19:57:35] assistant: Oh, Hi {{ state_machine.owner_name | default: '' }}, lovely to meet you.
+  [19:57:37] user: years
+  [19:57:37] user: years
+  [19:57:37] assistant: Our Managing Director has over 30 years' experience supporting independent businesses like yours. He's developed several unique concepts that both increase customer base and reduce overheads. His most recent invention helps bring in more customers through word-of-mouth, for FREE. He found and addressed the main reasons why only a small percentage of people act on word-of-mouth recommendations and why that figure has been dropping. The results for businesses like yours have been spectacular. It's a real game-changer. Sounds pretty interesting, doesn't it?
+  [19:57:41] user: Bye.
+  [19:57:41] user: Bye.
+  [19:57:42] assistant: # Action: LISTEN # Next States: SCRIPT_SELECTION_MM, PITCH_APPOINTMENT_MM, HANDLE_OBJECTION_MM, NOT_INTERESTED_MM # If "Yes" or "Tell me more" or sounds positive -> SCRIPT_SELECTION_MM (to ask MM or SM focus) # If strong positive and wants demo -> PITCH_APPOINTMENT_MM # If "No" or "Not interested" -> NOT_INTERESTED_MM (or a softer objection handler first) # If "What is it?" type response -> CLARIFICATION_MM (if still needed after the pitch)
+--------------------
+Call Ended: SID=CA462735f0ae3b17edbb6b606bb80bc40f, Start=2025-05-07 21:06:10.040426, End=2025-05-07 21:10:06.425721, Duration=236.39s, FinalState=44, LeadStatus=unknown
+  [20:06:12] assistant: Hi can I speak to the owner please?
+  [20:06:19] user: Yes, one moment, I'll go get him.
+  [20:06:19] user: Yes, one moment, I'll go get him.
+  [20:06:19] assistant: # Action: LISTEN # Next States: CONFIRM_OWNER_COMING_TO_PHONE, OWNER_ON_PHONE_REINTRODUCE, PITCH_INTEREST_TO_GATEKEEPER, HANGUP_MM # e.g., User: "I'll get them" -> CONFIRM_OWNER_COMING_TO_PHONE # e.g., User: "They're not here" / "Can I take a message?" -> PITCH_INTEREST_TO_GATEKEEPER # e.g., Owner comes to phone -> OWNER_ON_PHONE_REINTRODUCE
+  [20:10:06] user: to be honest with you.
+  [20:10:06] user: to be honest with you.
+--------------------
+Call Ended: SID=CA56c1ca288be5332528d7912dcc2bf1bf, Start=2025-05-10 12:46:56.039821, End=2025-05-10 12:47:19.129396, Duration=23.09s, FinalState=44, LeadStatus=unknown
+  [11:46:58] assistant: Hi can I speak to the owner please?
+  [11:47:04] user: speaking.
+  [11:47:04] user: speaking.
+  [11:47:04] assistant: Great. Are you the owner, please?
+  [11:47:10] user: You hear them?
+  [11:47:10] user: You hear them?
+  [11:47:10] assistant: Okay, I'll wait for you to get the owner. Thank you.
+  [11:47:16] user: Thank you.
+  [11:47:16] user: Thank you.
+  [11:47:16] assistant: Oh, it's nothing serious. This is a very quick introductory call. My name is Isaac from Proactiv. Sorry, what's your name, sir?
+  [11:47:19] user: I am the owner.
+  [11:47:19] user: I am the owner.
+--------------------
+Call Ended: SID=CAff467d48508b01ca0e6bc3454cd08ef0, Start=2025-05-10 12:49:38.419529, End=2025-05-10 12:50:16.959772, Duration=38.54s, FinalState=HANGUP_MM, LeadStatus=completed_other
+  [11:49:40] assistant: Hi can I speak to the owner please?
+  [11:49:45] user: Uh, yes.
+  [11:49:45] user: Uh, yes.
+  [11:49:45] assistant: It's Isaac.
+  [11:49:52] user: What for?
+  [11:49:52] user: What for?
+  [11:49:58] user: Hello.
+  [11:49:58] user: Hello.
+  [11:49:59] assistant: It's nothing serious. It's a very quick introductory call. Is the owner there?
+  [11:50:07] user: Yes, I am the owner.
+  [11:50:07] user: Yes, I am the owner.
+  [11:50:16] user: we have a problem here okay so the words
+  [11:50:16] user: we have a problem here okay so the words
+  [11:50:16] assistant: Okay, thank you for your time. Goodbye.
+--------------------
+Call Ended: SID=CA32b5696981fc28eb2591f3555b86cefc, Start=2025-05-10 12:51:44.412462, End=2025-05-10 12:52:57.748982, Duration=73.34s, FinalState=CALL_ENDED_ABRUPTLY, LeadStatus=disconnected
+  [11:51:46] assistant: Hi can I speak to the owner please?
+  [11:51:51] user: Uh, yes.
+  [11:51:51] user: Uh, yes.
+  [11:51:52] assistant: It's Isaac.
+  [11:51:57] user: What for?
+  [11:51:57] user: What for?
+  [11:52:05] user: You said yes, and it's responded if you said, who is it?
+  [11:52:05] user: You said yes, and it's responded if you said, who is it?
+  [11:52:06] assistant: It's nothing serious. It's a very quick introductory call. Is the owner there?
+  [11:52:08] user: Yeah.
+  [11:52:08] user: Yeah.
+  [11:52:14] user: Yes, I am the only
+  [11:52:14] user: Yes, I am the only
+  [11:52:14] assistant: Oh, it's nothing serious. This is a very quick introductory call. My name is Isaac from Proactiv. Sorry, what's your name, sir?
+  [11:52:34] user: don't need to repeat that would be a repetition there as well  yeah because it transitioned to the same state on error
+  [11:52:34] user: don't need to repeat that would be a repetition there as well  yeah because it transitioned to the same state on error
+  [11:52:37] user: I am Michael, yes.
+  [11:52:37] user: I am Michael, yes.
+  [11:52:37] assistant: Oh, Hi {{ state_machine.owner_name | default: '' }}, lovely to meet you.
+  [11:52:47] user: Ok, this is a passing the name error.
+  [11:52:47] user: Ok, this is a passing the name error.
+  [11:52:47] assistant: Our Managing Director has over 30 years' experience supporting independent businesses like yours. He's developed several unique concepts that both increase customer base and reduce overheads. His most recent invention helps bring in more customers through word-of-mouth, for FREE. He found and addressed the main reasons why only a small percentage of people act on word-of-mouth recommendations and why that figure has been dropping. The results for businesses like yours have been spectacular. It's a real game-changer. Sounds pretty interesting, doesn't it?
+  [11:52:51] user: So can the AI be able to do it?
+  [11:52:51] user: So can the AI be able to do it?
+--------------------
+Call Ended: SID=CA6932513109e73ed0bd70d8fc6128dc2d, Start=2025-05-10 12:56:03.767518, End=2025-05-10 12:56:33.207127, Duration=29.44s, FinalState=CALL_ENDED_ABRUPTLY, LeadStatus=disconnected
+  [11:56:05] assistant: Hi can I speak to the owner please?
+  [11:56:12] user: Yes, speaking.
+  [11:56:12] user: Yes, speaking.
+  [11:56:12] assistant: It's Isaac.
+  [11:56:17] user: work for
+  [11:56:17] user: work for
+  [11:56:32] user: transition to a state that
+  [11:56:32] user: transition to a state that
+--------------------
+Call Ended: SID=CAc5fc2f82788d696bbad066a1cf25d103, Start=2025-05-10 12:57:53.052995, End=2025-05-10 12:58:12.137988, Duration=19.08s, FinalState=CALL_ENDED_ABRUPTLY, LeadStatus=disconnected
+  [11:57:55] assistant: Hi can I speak to the owner please?
+  [11:58:00] user: Yes, speaking.
+  [11:58:00] user: Yes, speaking.
+  [11:58:00] assistant: It's Isaac.
+  [11:58:04] user: Blackboard.
+  [11:58:04] user: Blackboard.
+  [11:58:10] user: You'll give it this name there when you say speaking.
+  [11:58:10] user: You'll give it this name there when you say speaking.
+  [11:58:10] assistant: It's nothing serious. It's a very quick introductory call. Is the owner there?
+  [11:58:11] user: Thank you.
+  [11:58:11] user: Thank you.
+--------------------
+Call Ended: SID=CA4a1ef3892f01e7b3ee03b2b25a3c58a4, Start=2025-05-10 13:05:17.801159, End=2025-05-10 13:05:33.761003, Duration=15.96s, FinalState=CALL_ENDED_ABRUPTLY, LeadStatus=disconnected
+  [12:05:19] assistant: Hi can I speak to the owner please?
+  [12:05:25] user: Yes, speaking.
+  [12:05:25] user: Yes, speaking.
+  [12:05:25] assistant: It's Isaac.
+  [12:05:33] user: but it is not.
+  [12:05:33] user: but it is not.
+--------------------
+Call Ended: SID=CA13a5f7855fb8168ca70e25b39364392d, Start=2025-05-10 13:07:23.412176, End=2025-05-10 13:07:53.509829, Duration=30.10s, FinalState=CALL_ENDED_ABRUPTLY, LeadStatus=disconnected
+  [12:07:25] assistant: Hi can I speak to the owner please?
+  [12:07:30] user: Yes, speaking.
+  [12:07:30] user: Yes, speaking.
+  [12:07:31] assistant: It's nothing serious. It's a very quick introductory call. Is the owner there?
+  [12:07:39] user: Yes, I am the owner.
+  [12:07:39] user: Yes, I am the owner.
+  [12:07:46] user: Well, something's changing. He's asking if he's on the deck. If he's not speaking, he shouldn't ask you again.
+  [12:07:46] user: Well, something's changing. He's asking if he's on the deck. If he's not speaking, he shouldn't ask you again.
+  [12:07:46] assistant: Okay, thank you.
+  [12:07:51] assistant: Exellent! it's nothing serious, I'ts just a quick introductury call, My name is Isaac from Proactiv. Sorry, who am I speaking with?
+--------------------
+Call Ended: SID=CAb3fb175edb231de98853b6921eefecb9, Start=2025-05-10 13:10:59.261327, End=2025-05-10 13:11:30.628647, Duration=31.37s, FinalState=CALL_ENDED_ABRUPTLY, LeadStatus=disconnected
+  [12:11:01] assistant: Hi can I speak to the owner please?
+  [12:11:06] user: Yes, speaking.
+  [12:11:06] user: Yes, speaking.
+  [12:11:07] assistant: Exellent! it's nothing serious, I'ts just a quick introductury call, My name is Isaac from Proactiv. Sorry, who am I speaking with?
+  [12:11:18] user: I make it
+  [12:11:18] user: I make it
+  [12:11:27] user: Mm.
+  [12:11:27] user: Mm.
+  [12:11:27] assistant: 
+--------------------
+Call Ended: SID=CAc304736c10ecfde754864f80f72971ae, Start=2025-05-10 13:14:06.152717, End=2025-05-10 13:14:42.612641, Duration=36.46s, FinalState=CALL_ENDED_ABRUPTLY, LeadStatus=disconnected
+  [12:14:08] assistant: Hi can I speak to the owner please?
+  [12:14:13] user: Yes, speaking.
+  [12:14:13] user: Yes, speaking.
+  [12:14:14] assistant: Exellent! it's nothing serious, I'ts just a quick introductury call, My name is Isaac from Proactiv. Sorry, who am I speaking with?
+  [12:14:25] user: You are speaking with Michael.
+  [12:14:25] user: You are speaking with Michael.
+  [12:14:25] assistant: Oh, Hi , lovely to meet you.
+  [12:14:41] user: I think we can do it obviously it's quite a delay between the responses isn't there
+  [12:14:41] user: I think we can do it obviously it's quite a delay between the responses isn't there
+  [12:14:41] assistant: Our Managing Director has over 30 years' experience supporting independent businesses like yours. He's developed several unique concepts that both increase customer base and reduce overheads. His most recent invention helps bring in more customers through word-of-mouth, for FREE. He found and addressed the main reasons why only a small percentage of people act on word-of-mouth recommendations and why that figure has been dropping. The results for businesses like yours have been spectacular. It's a real game-changer. Sounds pretty interesting, doesn't it?
+--------------------
+Call Ended: SID=CA033dd516588b7c6c171828e92418d774, Start=2025-05-10 13:17:08.459565, End=2025-05-10 13:17:54.816486, Duration=46.36s, FinalState=CALL_ENDED_ABRUPTLY, LeadStatus=disconnected
+  [12:17:10] assistant: Hi can I speak to the owner please?
+  [12:17:16] user: Yes, speaking.
+  [12:17:16] user: Yes, speaking.
+  [12:17:16] assistant: Exellent! it's nothing serious, I'ts just a quick introductury call, My name is Isaac from Proactiv. Sorry, who am I speaking with?
+  [12:17:27] user: My name is Michael.
+  [12:17:27] user: My name is Michael.
+  [12:17:28] assistant: Oh, Hi , lovely to meet you.
+--------------------
+Call Ended: SID=CA2c16878278aab613a3b3ef4c3dd3a0e6, Start=2025-05-10 13:21:29.843106, End=2025-05-10 13:21:58.805417, Duration=28.96s, FinalState=CALL_ENDED_ABRUPTLY, LeadStatus=disconnected
+  [12:21:31] assistant: Hi can I speak to the owner please?
+  [12:21:37] user: Yes, speaking.
+  [12:21:37] user: Yes, speaking.
+  [12:21:37] assistant: Exellent! it's nothing serious, I'ts just a quick introductury call, My name is Isaac from Proactiv. Sorry, who am I speaking with?
+  [12:21:49] user: You are speaking with Michael.
+  [12:21:49] user: You are speaking with Michael.
+  [12:21:49] assistant: Oh, Hi {{ state_machine.owner_name | default: '' }}, lovely to meet you.
+  [12:21:57] assistant: Oh, Hi {{ state_machine.owner_name | default: '' }}, lovely to meet you.
+--------------------
+Call Ended: SID=CAcee25a05a07669cc809979da7670e5f2, Start=2025-05-10 13:25:36.839936, End=2025-05-10 13:26:04.492204, Duration=27.65s, FinalState=CALL_ENDED_ABRUPTLY, LeadStatus=disconnected
+  [12:25:38] assistant: Hi can I speak to the owner please?
+  [12:25:44] user: Yes, speaking.
+  [12:25:44] user: Yes, speaking.
+  [12:25:44] assistant: Exellent! it's nothing serious, I'ts just a quick introductury call, My name is Isaac from Proactiv. Sorry, who am I speaking with?
+  [12:25:56] user: You're speaking with Michael.
+  [12:25:56] user: You're speaking with Michael.
+  [12:25:56] assistant: Oh, Hi None, lovely to meet you.
+  [12:26:01] user: Thank you.
+  [12:26:01] user: Thank you.
+  [12:26:01] assistant: Our Managing Director has over 30 years' experience supporting independent businesses like yours. He's developed several unique concepts that both increase customer base and reduce overheads. His most recent invention helps bring in more customers through word-of-mouth, for FREE. He found and addressed the main reasons why only a small percentage of people act on word-of-mouth recommendations and why that figure has been dropping. The results for businesses like yours have been spectacular. It's a real game-changer. Sounds pretty interesting, doesn't it?
+  [12:26:03] user: Hello.
+  [12:26:03] user: Hello.
+--------------------
+Call Ended: SID=CA345a645fa82f2162ce1d1e21799f8439, Start=2025-05-10 13:32:48.070957, End=2025-05-10 13:33:08.241714, Duration=20.17s, FinalState=44, LeadStatus=unknown
+  [12:32:50] assistant: Hi can I speak to the owner please?
+  [12:32:55] user: Yes, speaking
+  [12:32:55] user: Yes, speaking
+  [12:32:56] assistant: Great! it's nothing serious, I'ts just a quick introductury call, My name is Isaac from Pro Active. Sorry, who am I speaking with?
+  [12:33:08] user: You are speaking with my cat
+  [12:33:08] user: You are speaking with my cat
+--------------------
+Call Ended: SID=CA73102c0ce332c804f098aeade66061c5, Start=2025-05-10 13:34:49.346174, End=2025-05-10 13:35:11.092444, Duration=21.75s, FinalState=CALL_ENDED_ABRUPTLY, LeadStatus=disconnected
+  [12:34:51] assistant: Hi can I speak to the owner please?
+  [12:34:57] user: Yes, speaking.
+  [12:34:57] user: Yes, speaking.
+  [12:34:58] assistant: Great! it's nothing serious, I'ts just a quick introductury call, My name is Isaac from Pro Active. Sorry, who am I speaking with?
+  [12:35:00] user: We're going to change.
+  [12:35:00] user: We're going to change.
+  [12:35:00] assistant: Oh, Hi None, lovely to meet you.
+  [12:35:01] user: Thank you.
+  [12:35:01] user: Thank you.
+  [12:35:01] assistant: Our Managing Director has over 30 years' experience supporting independent businesses like yours. He's developed several unique concepts that both increase customer base and reduce overheads. His most recent invention helps bring in more customers through word-of-mouth, for FREE. He found and addressed the main reasons why only a small percentage of people act on word-of-mouth recommendations and why that figure has been dropping. The results for businesses like yours have been spectacular. It's a real game-changer. Sounds pretty interesting, doesn't it?
+  [12:35:07] user: We'll be right back.
+  [12:35:07] user: We'll be right back.
+--------------------
+Call Ended: SID=CA833116b09aeefa5bbc60002eb62fd140, Start=2025-05-10 13:38:47.204938, End=2025-05-10 13:38:55.203078, Duration=8.00s, FinalState=44, LeadStatus=unknown
+  [12:38:49] assistant: Hi can I speak to the owner please?
+  [12:38:55] user: Yes, speaking.
+--------------------
+Call Ended: SID=CA101fd6ec566f3c36826d3f41ae3e2f9f, Start=2025-05-10 13:42:17.452563, End=2025-05-10 13:42:24.918477, Duration=7.47s, FinalState=44, LeadStatus=unknown
+  [12:42:19] assistant: Hi can I speak to the owner please?
+  [12:42:24] user: Yes, speaking.
+--------------------

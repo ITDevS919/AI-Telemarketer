@@ -1,0 +1,709 @@
+/* App root – allow flex layout to fill viewport */
+#app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.app-layout {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+/* Header – solid background, no gradient */
+.app-header {
+  background: #1e3a5f;
+  color: #fff;
+  padding: 1rem 1.5rem;
+  font-size: 1.25rem;
+  font-weight: 600;
+  box-shadow: var(--shadow-md);
+  letter-spacing: 0.02em;
+}
+
+/* Body: left nav + main content */
+.app-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+/* Left nav – vertical sidebar */
+.app-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  width: 12rem;
+  min-width: 12rem;
+  padding: 1rem 0.75rem;
+  background: var(--color-surface);
+  border-right: 1px solid var(--color-border);
+  box-shadow: var(--shadow-sm);
+}
+
+.app-nav .nav-link {
+  padding: 0.6rem 1rem;
+  text-decoration: none;
+  color: var(--color-text);
+  border-radius: var(--radius);
+  font-weight: 500;
+  transition: background-color 0.2s, color 0.2s;
+  border-left: 3px solid transparent;
+}
+
+.app-nav .nav-link:hover {
+  background: var(--color-background-soft);
+  color: var(--color-heading);
+}
+
+.app-nav .nav-link.active {
+  background: var(--color-info-bg);
+  color: var(--color-primary);
+  border-left-color: var(--color-primary);
+}
+
+.app-content {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  background: var(--color-background);
+  overflow: auto;
+}
+
+/* Page titles – consistent, readable */
+.dashboard,
+.calls-view,
+.settings-view {
+  padding: 1.5rem 1.5rem 2rem;
+}
+
+.dashboard h1,
+.calls-view h1,
+.settings-view h1 {
+  margin-bottom: 0.5rem;
+  color: var(--color-heading);
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.dashboard p {
+  margin-bottom: 1.5rem;
+  color: var(--color-text-muted);
+  font-size: 0.95rem;
+}
+
+.dashboard .calls-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+
+@media (max-width: 1024px) {
+  .dashboard .calls-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.dashboard .regulations-section {
+  margin-bottom: 1.5rem;
+}
+
+/* Calls view layout */
+.calls-view .layout-container {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+}
+
+@media (min-width: 1200px) {
+  .calls-view .layout-container {
+    grid-template-columns: 1.8fr 1.2fr;
+  }
+}
+
+.calls-view h1 {
+  margin-bottom: 1.25rem;
+}
+
+/* Settings view */
+.settings-view h1 {
+  margin-bottom: 1.25rem;
+}
+
+.settings-view .loading-message {
+  padding: 1.25rem;
+  text-align: center;
+  color: var(--color-text-muted);
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+}
+
+.settings-view .section,
+.section {
+  margin-bottom: 1.5rem;
+  padding: 1.25rem 1.5rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+
+.settings-view .section h2,
+.section h2 {
+  margin-top: 0;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-heading);
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.settings-form {
+  max-width: 32rem;
+}
+
+.settings-view .form-group,
+.section .form-group {
+  margin-bottom: 1.25rem;
+}
+
+.settings-view label,
+.section label {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-weight: 600;
+  color: var(--color-heading);
+  font-size: 0.9rem;
+}
+
+.settings-view input[type="number"],
+.section input,
+.section select {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font-size: 0.95rem;
+  color: var(--color-text);
+  background: var(--color-surface);
+  box-sizing: border-box;
+}
+
+.settings-view input[type="number"]:focus,
+.section input:focus,
+.section select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.settings-view small,
+.section small {
+  display: block;
+  margin-top: 0.35rem;
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+}
+
+.settings-view button,
+.section button {
+  padding: 0.5rem 1rem;
+  background: var(--color-success);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 500;
+  transition: background-color 0.2s, transform 0.05s;
+}
+
+.settings-view button:hover:not(:disabled),
+.section button:hover:not(:disabled) {
+  background: #047857;
+}
+
+.settings-view button:disabled,
+.section button:disabled {
+  background: #94a3b8;
+  cursor: not-allowed;
+  opacity: 0.8;
+}
+
+/* Status areas – clear, comfortable contrast */
+.status-area {
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  border: 1px solid transparent;
+}
+
+.status-success {
+  background: var(--color-success-bg);
+  color: #065f46;
+  border-color: #a7f3d0;
+}
+
+.status-error {
+  background: var(--color-error-bg);
+  color: #b91c1c;
+  border-color: #fecaca;
+}
+
+.status-info {
+  background: var(--color-info-bg);
+  color: #0369a1;
+  border-color: #bae6fd;
+}
+
+/* HealthStatus – white card, clear indicators */
+.health-status-container {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.5rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.health-status-container h2 {
+  margin-top: 0;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-heading);
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.health-status-container .refresh-control {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.health-status-container .last-checked {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+.health-status-container button {
+  padding: 0.5rem 1rem;
+  background: var(--color-success);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+  min-width: 7rem;
+  transition: background-color 0.2s;
+}
+
+.health-status-container button:hover:not(:disabled) {
+  background: #047857;
+}
+
+.health-status-container button:disabled {
+  background: #94a3b8;
+  cursor: not-allowed;
+  opacity: 0.8;
+}
+
+.health-indicators {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.health-status-container .status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.75rem;
+}
+
+.health-status-indicator {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  background: var(--color-background-soft);
+  border: 1px solid var(--color-text-muted);
+  font-size: 0.9rem;
+  color: var(--color-text);
+}
+
+.health-status-indicator.overall {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.health-status-indicator.overall .indicator-content {
+  display: flex;
+  align-items: center;
+  flex: 1;
+}
+
+.health-status-indicator.status-ok {
+  background: #F2FAE9;
+  border: 1px solid #76D3A0;
+  padding: 0.875rem 1.125rem;
+}
+
+.health-status-indicator.status-ok .indicator-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  min-width: 1.5rem;
+  margin-right: 0.75rem;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid #2A7353;
+  flex-shrink: 0;
+}
+
+.health-status-indicator.status-ok .indicator-icon svg {
+  width: 0.875rem;
+  height: 0.875rem;
+  stroke: #2A7353;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+}
+
+.health-status-indicator.status-ok .indicator-content {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  color: #2A7353;
+  font-weight: 500;
+}
+
+.health-status-indicator.status-ok .indicator-label {
+  margin-right: 0.5rem;
+  color: #2A7353;
+}
+
+.health-status-indicator.status-ok .indicator-value {
+  color: #2A7353;
+  font-weight: 600;
+}
+
+.health-status-indicator.status-error {
+  background: var(--color-error-bg);
+}
+
+.health-status-indicator.status-error .indicator-value {
+  color: #b91c1c;
+  font-weight: 600;
+}
+
+.indicator-label {
+  margin-right: 0.5rem;
+  color: var(--color-text);
+}
+
+.health-error,
+.health-status-container .loading-message,
+.health-status-container .no-data-message {
+  padding: 1rem;
+  margin-top: 0.5rem;
+  border-radius: 6px;
+  text-align: center;
+  font-size: 0.9rem;
+}
+
+.health-error {
+  background: var(--color-error-bg);
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+
+.health-status-container .loading-message,
+.health-status-container .no-data-message {
+  background: var(--color-background-soft);
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border);
+}
+
+/* Section cards – SingleCallForm, ControlPanel, CallList, CallDetail */
+.section.single-call-form button,
+.section.control-panel button {
+  margin-top: 0;
+}
+
+.section .status-area {
+  white-space: pre-wrap;
+}
+
+.form-row {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+@media (max-width: 600px) {
+  .form-row {
+    flex-direction: column;
+  }
+}
+
+.section.control-panel textarea {
+  width: 100%;
+  padding: 0.75rem;
+  margin-bottom: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  min-height: 9rem;
+  font-size: 0.9rem;
+  font-family: inherit;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.section.control-panel textarea:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+/* CallList */
+.call-list-section .controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.call-list-section .pagination label {
+  display: inline-block;
+  margin-right: 0.35rem;
+  margin-left: 0.75rem;
+  font-weight: 500;
+  font-size: 0.9rem;
+  color: var(--color-text);
+}
+
+.call-list-section .pagination input {
+  width: 3.5rem;
+  padding: 0.35rem 0.5rem;
+  margin-right: 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+
+.call-list-section button {
+  background: var(--color-primary);
+}
+
+.call-list-section button:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+}
+
+.call-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.call-list li {
+  background: var(--color-background-soft);
+  margin-bottom: 0.5rem;
+  padding: 0.9rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s;
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+}
+
+.call-list li:hover {
+  background: #e2e8f0;
+  border-color: #cbd5e1;
+}
+
+.call-list li.selected {
+  background: #dbeafe;
+  border-color: var(--color-primary);
+  font-weight: 500;
+  color: var(--color-heading);
+}
+
+.call-list li span {
+  display: inline-block;
+  margin-right: 1rem;
+  min-width: 8rem;
+  font-size: 0.85rem;
+}
+
+.call-list li span b {
+  color: var(--color-text-muted);
+  font-weight: 600;
+}
+
+.call-list-section .loading-message,
+.call-list-section .no-calls-message {
+  padding: 1.25rem;
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  background: var(--color-surface);
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+}
+
+/* CallDetail */
+.call-details-section h3 {
+  margin-top: 0;
+  margin-bottom: 0.5rem;
+  color: var(--color-heading);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.call-details-section h4 {
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px dashed var(--color-border);
+  color: var(--color-text);
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.call-details-section .loading-message,
+.call-details-section .no-selection-message {
+  padding: 1.25rem;
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  background: var(--color-background-soft);
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+}
+
+.details-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.details-list li {
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+  color: var(--color-text);
+}
+
+.details-list li b {
+  display: inline-block;
+  min-width: 11rem;
+  color: var(--color-text-muted);
+  font-weight: 600;
+}
+
+.history-container {
+  max-height: 20rem;
+  overflow-y: auto;
+  background: var(--color-background-soft);
+  padding: 1rem;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  font-family: ui-monospace, monospace;
+  font-size: 0.85rem;
+  color: var(--color-text);
+}
+
+.history-entry {
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px dashed var(--color-border);
+  white-space: pre-wrap;
+}
+
+.history-entry:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.history-entry strong {
+  text-transform: capitalize;
+  color: var(--color-heading);
+  font-size: 0.9rem;
+}
+
+.history-entry p {
+  margin: 0.35rem 0 0;
+  color: var(--color-text);
+}
+
+.history-entry small {
+  color: var(--color-text-muted);
+  font-style: italic;
+  font-size: 0.8rem;
+}
+
+.recording-player {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.recording-player audio {
+  width: 100%;
+  margin-top: 0.5rem;
+  height: 2.5rem;
+}
+
+.recording-link {
+  display: inline-block;
+  margin-top: 0.5rem;
+  color: var(--color-primary);
+  font-size: 0.9rem;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.recording-link:hover {
+  text-decoration: underline;
+}
+
+.script-badge {
+  margin: 0.5rem 0 1rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--color-text);
+}
+
+.script-badge span {
+  display: inline-block;
+  padding: 0.25rem 0.6rem;
+  border-radius: 6px;
+  color: #fff;
+  margin-left: 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.mm-badge {
+  background: var(--color-success);
+}
+
+.sm-badge {
+  background: var(--color-primary);
+}

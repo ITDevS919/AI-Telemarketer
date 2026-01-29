@@ -1,0 +1,10 @@
+[tool.pyright]
+# Specifies the root directory for execution environments.
+# This helps Pyright/Pylance resolve imports correctly when your source code
+# is in a subdirectory (like 'backend').
+executionEnvironments = [
+  { root = "backend" } # Treat the 'backend' directory as a root
+]
+
+# You can add other project metadata or tool configurations here later
+# e.g., [build-system], [tool.pytest.ini_options], [tool.ruff] 

@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+piper-tts
+faster-whisper
+twilio
+python-dotenv
+silero-vad 
+groq>=0.9.0 
