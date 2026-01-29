@@ -2,6 +2,7 @@ import React from 'react';
 import HealthStatus from '../components/HealthStatus';
 import SingleCallForm from '../components/SingleCallForm';
 import ControlPanel from '../components/ControlPanel';
+import RegulationChecker from '../components/RegulationChecker';
 
 const DashboardPage: React.FC = () => {
   return (
@@ -15,6 +16,10 @@ const DashboardPage: React.FC = () => {
       </div>
 
       <HealthStatus />
+
+      <div className="regulations-section">
+        <RegulationChecker />
+      </div>
 
       <div className="calls-grid">
         <SingleCallForm />

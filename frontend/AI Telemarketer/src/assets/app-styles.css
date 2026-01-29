@@ -448,6 +448,18 @@
   white-space: pre-wrap;
 }
 
+.section .button-group {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  flex-wrap: wrap;
+}
+
+.section .button-group button {
+  flex: 1;
+  min-width: 8rem;
+}
+
 .form-row {
   display: flex;
   gap: 1rem;

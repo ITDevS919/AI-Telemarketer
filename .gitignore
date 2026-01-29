@@ -31,7 +31,7 @@ ENV/
 .vscode/
 *.swp
 *.swo
-
+telemarketerv2/data/models/
 # Project specific
 pretrained_models/
 tmp_output/

@@ -69,4 +69,41 @@ export const getLeads = (limit: number = 50, offset: number = 0) =>
 export const getLeadDetails = (leadId: string) =>
   apiClient.get(`/leads/${leadId}`);
 
+// --- Regulations Endpoints ---
+export interface CheckRegulationsPayload {
+  phone_number: string;
+  caller_id?: string;
+}
+
+export interface RegulationsCheckResponse {
+  permitted: boolean;
+  reason?: string;
+  violation_type?: string;
+}
+
+export interface RegulationsStatusResponse {
+  initialized: boolean;
+  database_path?: string;
+  tps_enabled?: boolean;
+}
+
+export interface RegulationsHistoryResponse {
+  phone_number: string;
+  calls: Array<{
+    call_sid: string;
+    timestamp: number;
+    status: string;
+    violation_type?: string;
+  }>;
+}
+
+export const checkRegulations = (payload: CheckRegulationsPayload) =>
+  apiClient.post<RegulationsCheckResponse>('/regulations/check', payload);
+
+export const getRegulationsStatus = () =>
+  apiClient.get<RegulationsStatusResponse>('/regulations/status');
+
+export const getRegulationsHistory = (phoneNumber: string, days: number = 30) =>
+  apiClient.get<RegulationsHistoryResponse>(`/regulations/history/${encodeURIComponent(phoneNumber)}?days=${days}`);
+
 export default apiClient;
