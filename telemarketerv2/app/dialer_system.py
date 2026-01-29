@@ -17,6 +17,7 @@ import re
 from typing import Dict, List, Optional, Set, Any, Tuple
 from enum import Enum
 import sqlite3
+from .database.connection import DatabaseAdapter, get_database_adapter
 from pathlib import Path
 
 # Twilio imports
@@ -131,10 +132,15 @@ class DialerSystem:
             # Initialize the database schema
             init_database(self.db_path)
             
-            # Create a connection to the database
-            self.db_conn = sqlite3.connect(self.db_path)
-            self.db_conn.row_factory = sqlite3.Row
-            logger.info(f"Database initialized at {self.db_path}")
+            # Create a database adapter (supports both SQLite and PostgreSQL)
+            self.db_adapter = get_database_adapter(self.db_path)
+            self.db_adapter.connect()
+            
+            # For backward compatibility, set db_conn to adapter's connection
+            # The adapter handles both SQLite and PostgreSQL connections
+            self.db_conn = self.db_adapter
+            
+            logger.info(f"Database initialized: {self.db_path}")
         except Exception as e:
             logger.error(f"Failed to initialize database: {e}")
             raise
@@ -297,59 +303,109 @@ class DialerSystem:
             return
             
         try:
-            cursor = self.db_conn.cursor()
-            
-            # Check if record already exists
-            cursor.execute("SELECT call_id FROM call_records WHERE call_id = ?", 
-                          (call_record["call_id"],))
-            exists = cursor.fetchone()
-            
-            if exists:
-                # Update existing record
-                cursor.execute("""
-                    UPDATE call_records SET
-                    status = ?,
-                    retry_count = ?,
-                    scheduled_time = ?,
-                    last_error = ?,
-                    regulation_violation = ?,
-                    updated_at = ?
-                    WHERE call_id = ?
-                """, (
-                    call_record["status"],
-                    call_record.get("retry_count", 0),
-                    call_record.get("scheduled_time", datetime.datetime.now().isoformat()),
-                    call_record.get("last_error"),
-                    call_record.get("regulation_violation"),
-                    datetime.datetime.now().isoformat(),
-                    call_record["call_id"]
-                ))
-            else:
-                # Insert new record
-                cursor.execute("""
-                    INSERT INTO call_records (
-                        call_id, phone_number, business_type, caller_id,
-                        status, retry_count, created_at, scheduled_time,
-                        last_error, regulation_violation, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    call_record["call_id"],
-                    call_record["phone_number"],
-                    call_record["business_type"],
-                    call_record["caller_id"],
-                    call_record["status"],
-                    call_record.get("retry_count", 0),
-                    call_record.get("created_at", datetime.datetime.now().isoformat()),
-                    call_record.get("scheduled_time", datetime.datetime.now().isoformat()),
-                    call_record.get("last_error"),
-                    call_record.get("regulation_violation"),
-                    datetime.datetime.now().isoformat()
-                ))
+            if isinstance(self.db_conn, DatabaseAdapter):
+                # Use adapter methods
+                cursor = self.db_conn.execute("SELECT call_id FROM call_records WHERE call_id = ?", 
+                              (call_record["call_id"],))
+                exists = cursor.fetchone()
                 
-            self.db_conn.commit()
+                if exists:
+                    # Update existing record
+                    self.db_conn.execute("""
+                        UPDATE call_records SET
+                        status = ?,
+                        retry_count = ?,
+                        scheduled_time = ?,
+                        last_error = ?,
+                        regulation_violation = ?,
+                        updated_at = ?
+                        WHERE call_id = ?
+                    """, (
+                        call_record["status"],
+                        call_record.get("retry_count", 0),
+                        call_record.get("scheduled_time", datetime.datetime.now().isoformat()),
+                        call_record.get("last_error"),
+                        call_record.get("regulation_violation"),
+                        datetime.datetime.now().isoformat(),
+                        call_record["call_id"]
+                    ))
+                else:
+                    # Insert new record
+                    self.db_conn.execute("""
+                        INSERT INTO call_records (
+                            call_id, phone_number, business_type, caller_id,
+                            status, retry_count, created_at, scheduled_time,
+                            last_error, regulation_violation, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        call_record["call_id"],
+                        call_record["phone_number"],
+                        call_record["business_type"],
+                        call_record["caller_id"],
+                        call_record["status"],
+                        call_record.get("retry_count", 0),
+                        call_record.get("created_at", datetime.datetime.now().isoformat()),
+                        call_record.get("scheduled_time", datetime.datetime.now().isoformat()),
+                        call_record.get("last_error"),
+                        call_record.get("regulation_violation"),
+                        datetime.datetime.now().isoformat()
+                    ))
+                    
+                self.db_conn.commit()
+            else:
+                # Backward compatibility with direct sqlite3 connection
+                cursor = self.db_conn.cursor()
+                cursor.execute("SELECT call_id FROM call_records WHERE call_id = ?", 
+                              (call_record["call_id"],))
+                exists = cursor.fetchone()
+                
+                if exists:
+                    cursor.execute("""
+                        UPDATE call_records SET
+                        status = ?,
+                        retry_count = ?,
+                        scheduled_time = ?,
+                        last_error = ?,
+                        regulation_violation = ?,
+                        updated_at = ?
+                        WHERE call_id = ?
+                    """, (
+                        call_record["status"],
+                        call_record.get("retry_count", 0),
+                        call_record.get("scheduled_time", datetime.datetime.now().isoformat()),
+                        call_record.get("last_error"),
+                        call_record.get("regulation_violation"),
+                        datetime.datetime.now().isoformat(),
+                        call_record["call_id"]
+                    ))
+                else:
+                    cursor.execute("""
+                        INSERT INTO call_records (
+                            call_id, phone_number, business_type, caller_id,
+                            status, retry_count, created_at, scheduled_time,
+                            last_error, regulation_violation, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        call_record["call_id"],
+                        call_record["phone_number"],
+                        call_record["business_type"],
+                        call_record["caller_id"],
+                        call_record["status"],
+                        call_record.get("retry_count", 0),
+                        call_record.get("created_at", datetime.datetime.now().isoformat()),
+                        call_record.get("scheduled_time", datetime.datetime.now().isoformat()),
+                        call_record.get("last_error"),
+                        call_record.get("regulation_violation"),
+                        datetime.datetime.now().isoformat()
+                    ))
+                    
+                self.db_conn.commit()
         except Exception as e:
             logger.error(f"Error saving call record: {e}")
-            self.db_conn.rollback()
+            if isinstance(self.db_conn, DatabaseAdapter):
+                self.db_conn.rollback()
+            else:
+                self.db_conn.rollback()
     
     async def start_dialer(self):
         """Start the dialer system"""
@@ -1096,8 +1152,13 @@ class DialerSystem:
         """Clean up resources used by the dialer system"""
         await self.stop_dialer()
         # await self.regulations_manager.cleanup() # This was also commented out, ensure it's intended
+        if self.db_adapter:
+            self.db_adapter.close()
+            self.db_adapter = None
         if self.db_conn:
-            self.db_conn.close()
+            # Only close if it's a direct sqlite3 connection (not the adapter)
+            if isinstance(self.db_conn, sqlite3.Connection):
+                self.db_conn.close()
             self.db_conn = None
             
         logger.info("Dialer system resources cleaned up") 

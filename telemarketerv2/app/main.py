@@ -51,7 +51,9 @@ async def lifespan(app: FastAPI):
     logger.info("FastAPI application startup...")
     
     # --- DialerSystem Initialization ---
-    db_path = os.getenv("DB_PATH", "telemarketer_calls.db")
+    # Support both DATABASE_URL (PostgreSQL) and DB_PATH (SQLite)
+    database_url = os.getenv("DATABASE_URL")
+    db_path = database_url if database_url else os.getenv("DB_PATH", "telemarketer_calls.db")
     dialer_system_instance = DialerSystem(db_path=db_path)
     try:
         await dialer_system_instance.initialize()

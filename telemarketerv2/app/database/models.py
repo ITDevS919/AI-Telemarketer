@@ -3,6 +3,8 @@ Database models for the AI Telemarketer system
 
 This module defines the database schema and provides functions
 for initializing and interacting with the database.
+
+Supports both SQLite and PostgreSQL databases.
 """
 
 import sqlite3
@@ -13,78 +15,82 @@ import os
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Union
 
+from .connection import DatabaseAdapter, get_database_adapter
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("database.models")
 
-def init_database(db_path: str):
+def init_database(connection_string: str):
     """
     Initialize the database schema.
     
     Args:
-        db_path: Path to the SQLite database file
+        connection_string: Database connection string (SQLite file path or PostgreSQL URL)
     """
-    # Create directory if it doesn't exist
-    db_dir = os.path.dirname(db_path)
-    if db_dir and not os.path.exists(db_dir):
-        os.makedirs(db_dir)
+    adapter = get_database_adapter(connection_string)
+    adapter.connect()
     
-    # Connect to database
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    
-    # Create call_records table
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS call_records (
-        call_id TEXT PRIMARY KEY,
-        phone_number TEXT NOT NULL,
-        business_type TEXT NOT NULL,
-        caller_id TEXT NOT NULL,
-        status TEXT NOT NULL,
-        retry_count INTEGER DEFAULT 0,
-        created_at TEXT NOT NULL,
-        scheduled_time TEXT NOT NULL,
-        started_at TEXT,
-        completed_at TEXT,
-        last_error TEXT,
-        regulation_violation TEXT,
-        call_sid TEXT,
-        twilio_call_sid TEXT,
-        conversation_history TEXT,
-        call_duration INTEGER,
-        updated_at TEXT NOT NULL
-    )
-    """)
-    
-    # Create lead_records table
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS lead_records (
-        lead_id TEXT PRIMARY KEY,
-        call_id TEXT NOT NULL,
-        phone_number TEXT NOT NULL,
-        business_name TEXT,
-        business_type TEXT,
-        contact_name TEXT,
-        contact_email TEXT,
-        contact_phone TEXT,
-        appointment_time TEXT,
-        notes TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
-        FOREIGN KEY (call_id) REFERENCES call_records (call_id)
-    )
-    """)
-    
-    # Create indices
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_call_records_status ON call_records (status)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_call_records_phone ON call_records (phone_number)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_call_records_created ON call_records (created_at)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_lead_records_call_id ON lead_records (call_id)")
-    
-    conn.commit()
-    conn.close()
-    
-    logger.info(f"Database initialized at {db_path}")
+    try:
+        # Determine column types based on database
+        text_type = "TEXT" if adapter.db_type == "sqlite" else "VARCHAR"
+        int_type = "INTEGER" if adapter.db_type == "sqlite" else "INTEGER"
+        
+        # Create call_records table
+        call_records_sql = f"""
+        CREATE TABLE IF NOT EXISTS call_records (
+            call_id {text_type} PRIMARY KEY,
+            phone_number {text_type} NOT NULL,
+            business_type {text_type} NOT NULL,
+            caller_id {text_type} NOT NULL,
+            status {text_type} NOT NULL,
+            retry_count {int_type} DEFAULT 0,
+            created_at {text_type} NOT NULL,
+            scheduled_time {text_type} NOT NULL,
+            started_at {text_type},
+            completed_at {text_type},
+            last_error {text_type},
+            regulation_violation {text_type},
+            call_sid {text_type},
+            twilio_call_sid {text_type},
+            conversation_history {text_type},
+            call_duration {int_type},
+            updated_at {text_type} NOT NULL
+        )
+        """
+        adapter.execute(call_records_sql)
+        
+        # Create lead_records table
+        lead_records_sql = f"""
+        CREATE TABLE IF NOT EXISTS lead_records (
+            lead_id {text_type} PRIMARY KEY,
+            call_id {text_type} NOT NULL,
+            phone_number {text_type} NOT NULL,
+            business_name {text_type},
+            business_type {text_type},
+            contact_name {text_type},
+            contact_email {text_type},
+            contact_phone {text_type},
+            appointment_time {text_type},
+            notes {text_type},
+            created_at {text_type} NOT NULL,
+            updated_at {text_type} NOT NULL,
+            FOREIGN KEY (call_id) REFERENCES call_records (call_id)
+        )
+        """
+        adapter.execute(lead_records_sql)
+        
+        # Create indices
+        adapter.execute("CREATE INDEX IF NOT EXISTS idx_call_records_status ON call_records (status)")
+        adapter.execute("CREATE INDEX IF NOT EXISTS idx_call_records_phone ON call_records (phone_number)")
+        adapter.execute("CREATE INDEX IF NOT EXISTS idx_call_records_created ON call_records (created_at)")
+        adapter.execute("CREATE INDEX IF NOT EXISTS idx_lead_records_call_id ON lead_records (call_id)")
+        
+        adapter.commit()
+        logger.info(f"Database initialized: {connection_string}")
+        
+    finally:
+        adapter.close()
 
 class BaseModel:
     """Base class for database models"""
@@ -98,16 +104,18 @@ class BaseModel:
             setattr(self, key, value)
     
     @classmethod
-    def from_row(cls, row: sqlite3.Row) -> 'BaseModel':
+    def from_row(cls, row: Any) -> 'BaseModel':
         """
         Create model instance from database row.
         
         Args:
-            row: SQLite row
+            row: Database row (SQLite Row, PostgreSQL dict-like, or dict)
             
         Returns:
             Model instance
         """
+        if hasattr(row, 'keys'):
+            return cls(**dict(row))
         return cls(**dict(row))
     
     def to_dict(self) -> Dict:
@@ -120,27 +128,34 @@ class BaseModel:
         return {k: v for k, v in self.__dict__.items() if not k.startswith('_')}
     
     @classmethod
-    def get_by_id(cls, conn: sqlite3.Connection, id_value: str) -> Optional['BaseModel']:
+    def get_by_id(cls, conn: Union[DatabaseAdapter, sqlite3.Connection], id_value: str) -> Optional['BaseModel']:
         """
         Get record by ID.
         
         Args:
-            conn: Database connection
+            conn: Database connection (DatabaseAdapter or sqlite3.Connection)
             id_value: ID value
             
         Returns:
             Model instance or None if not found
         """
-        cursor = conn.cursor()
-        cursor.execute(f"SELECT * FROM {cls.table_name} WHERE {cls.primary_key} = ?", (id_value,))
-        row = cursor.fetchone()
-        
-        if row:
-            return cls.from_row(row)
-        return None
+        if isinstance(conn, DatabaseAdapter):
+            cursor = conn.execute(f"SELECT * FROM {cls.table_name} WHERE {cls.primary_key} = ?", (id_value,))
+            row = cursor.fetchone()
+            if row:
+                return cls(**conn.row_to_dict(row))
+            return None
+        else:
+            # Backward compatibility
+            cursor = conn.cursor()
+            cursor.execute(f"SELECT * FROM {cls.table_name} WHERE {cls.primary_key} = ?", (id_value,))
+            row = cursor.fetchone()
+            if row:
+                return cls.from_row(row)
+            return None
     
     @classmethod
-    def get_all(cls, conn: sqlite3.Connection, 
+    def get_all(cls, conn: Union[DatabaseAdapter, sqlite3.Connection], 
                where_clause: str = "", 
                params: tuple = (), 
                order_by: str = "", 
@@ -150,7 +165,7 @@ class BaseModel:
         Get multiple records.
         
         Args:
-            conn: Database connection
+            conn: Database connection (DatabaseAdapter or sqlite3.Connection)
             where_clause: SQL WHERE clause (without 'WHERE')
             params: Parameters for the query
             order_by: SQL ORDER BY clause (without 'ORDER BY')
@@ -160,8 +175,6 @@ class BaseModel:
         Returns:
             List of model instances
         """
-        cursor = conn.cursor()
-        
         query = f"SELECT * FROM {cls.table_name}"
         if where_clause:
             query += f" WHERE {where_clause}"
@@ -172,79 +185,114 @@ class BaseModel:
         if offset:
             query += f" OFFSET {offset}"
         
-        cursor.execute(query, params)
-        rows = cursor.fetchall()
-        
-        return [cls.from_row(row) for row in rows]
+        if isinstance(conn, DatabaseAdapter):
+            cursor = conn.execute(query, params)
+            rows = cursor.fetchall()
+            return [cls(**conn.row_to_dict(row)) for row in rows]
+        else:
+            # Backward compatibility
+            cursor = conn.cursor()
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+            return [cls.from_row(row) for row in rows]
     
-    def save(self, conn: sqlite3.Connection) -> bool:
+    def save(self, conn: Union[DatabaseAdapter, sqlite3.Connection]) -> bool:
         """
         Save model to database.
         
         Args:
-            conn: Database connection
+            conn: Database connection (DatabaseAdapter or sqlite3.Connection)
             
         Returns:
             True if successful, False otherwise
         """
-        cursor = conn.cursor()
         data = self.to_dict()
         
         # Set updated_at
         if 'updated_at' in data:
             data['updated_at'] = datetime.datetime.now().isoformat()
         
-        # Check if record exists
-        cursor.execute(f"SELECT 1 FROM {self.table_name} WHERE {self.primary_key} = ?", 
-                     (data[self.primary_key],))
-        exists = cursor.fetchone() is not None
-        
         try:
-            if exists:
-                # Update
-                set_clause = ', '.join(f"{k} = ?" for k in data.keys() if k != self.primary_key)
-                params = [data[k] for k in data.keys() if k != self.primary_key]
-                params.append(data[self.primary_key])
+            if isinstance(conn, DatabaseAdapter):
+                # Check if record exists
+                cursor = conn.execute(f"SELECT 1 FROM {self.table_name} WHERE {self.primary_key} = ?", 
+                                     (data[self.primary_key],))
+                exists = cursor.fetchone() is not None
                 
-                cursor.execute(f"UPDATE {self.table_name} SET {set_clause} WHERE {self.primary_key} = ?", params)
+                if exists:
+                    # Update
+                    set_clause = ', '.join(f"{k} = ?" for k in data.keys() if k != self.primary_key)
+                    params = [data[k] for k in data.keys() if k != self.primary_key]
+                    params.append(data[self.primary_key])
+                    conn.execute(f"UPDATE {self.table_name} SET {set_clause} WHERE {self.primary_key} = ?", tuple(params))
+                else:
+                    # Insert
+                    keys = ', '.join(data.keys())
+                    placeholders = ', '.join(['?'] * len(data))
+                    params = list(data.values())
+                    conn.execute(f"INSERT INTO {self.table_name} ({keys}) VALUES ({placeholders})", tuple(params))
+                
+                conn.commit()
+                return True
             else:
-                # Insert
-                keys = ', '.join(data.keys())
-                placeholders = ', '.join(['?'] * len(data))
-                params = list(data.values())
+                # Backward compatibility
+                cursor = conn.cursor()
+                cursor.execute(f"SELECT 1 FROM {self.table_name} WHERE {self.primary_key} = ?", 
+                             (data[self.primary_key],))
+                exists = cursor.fetchone() is not None
                 
-                cursor.execute(f"INSERT INTO {self.table_name} ({keys}) VALUES ({placeholders})", params)
+                if exists:
+                    set_clause = ', '.join(f"{k} = ?" for k in data.keys() if k != self.primary_key)
+                    params = [data[k] for k in data.keys() if k != self.primary_key]
+                    params.append(data[self.primary_key])
+                    cursor.execute(f"UPDATE {self.table_name} SET {set_clause} WHERE {self.primary_key} = ?", params)
+                else:
+                    keys = ', '.join(data.keys())
+                    placeholders = ', '.join(['?'] * len(data))
+                    params = list(data.values())
+                    cursor.execute(f"INSERT INTO {self.table_name} ({keys}) VALUES ({placeholders})", params)
                 
-            conn.commit()
-            return True
-            
+                conn.commit()
+                return True
+                
         except Exception as e:
             logger.error(f"Error saving {self.table_name}: {e}")
-            conn.rollback()
+            if isinstance(conn, DatabaseAdapter):
+                conn.rollback()
+            else:
+                conn.rollback()
             return False
     
     @classmethod
-    def delete(cls, conn: sqlite3.Connection, id_value: str) -> bool:
+    def delete(cls, conn: Union[DatabaseAdapter, sqlite3.Connection], id_value: str) -> bool:
         """
         Delete record from database.
         
         Args:
-            conn: Database connection
+            conn: Database connection (DatabaseAdapter or sqlite3.Connection)
             id_value: ID value
             
         Returns:
             True if successful, False otherwise
         """
-        cursor = conn.cursor()
-        
         try:
-            cursor.execute(f"DELETE FROM {cls.table_name} WHERE {cls.primary_key} = ?", (id_value,))
-            conn.commit()
-            return cursor.rowcount > 0
+            if isinstance(conn, DatabaseAdapter):
+                cursor = conn.execute(f"DELETE FROM {cls.table_name} WHERE {cls.primary_key} = ?", (id_value,))
+                conn.commit()
+                return cursor.rowcount > 0
+            else:
+                # Backward compatibility
+                cursor = conn.cursor()
+                cursor.execute(f"DELETE FROM {cls.table_name} WHERE {cls.primary_key} = ?", (id_value,))
+                conn.commit()
+                return cursor.rowcount > 0
             
         except Exception as e:
             logger.error(f"Error deleting {cls.table_name}: {e}")
-            conn.rollback()
+            if isinstance(conn, DatabaseAdapter):
+                conn.rollback()
+            else:
+                conn.rollback()
             return False
 
 class CallRecord(BaseModel):
@@ -332,33 +380,39 @@ class CallRecord(BaseModel):
         return json.loads(self.conversation_history)
     
     @classmethod
-    def get_by_twilio_sid(cls, conn: sqlite3.Connection, twilio_sid: str) -> Optional['CallRecord']:
+    def get_by_twilio_sid(cls, conn: Union[DatabaseAdapter, sqlite3.Connection], twilio_sid: str) -> Optional['CallRecord']:
         """
         Get call record by Twilio SID.
         
         Args:
-            conn: Database connection
+            conn: Database connection (DatabaseAdapter or sqlite3.Connection)
             twilio_sid: Twilio call SID
             
         Returns:
             CallRecord or None if not found
         """
-        cursor = conn.cursor()
-        cursor.execute(f"SELECT * FROM {cls.table_name} WHERE twilio_call_sid = ?", (twilio_sid,))
-        row = cursor.fetchone()
-        
-        if row:
-            return cls.from_row(row)
-        return None
+        if isinstance(conn, DatabaseAdapter):
+            cursor = conn.execute(f"SELECT * FROM {cls.table_name} WHERE twilio_call_sid = ?", (twilio_sid,))
+            row = cursor.fetchone()
+            if row:
+                return cls(**conn.row_to_dict(row))
+            return None
+        else:
+            cursor = conn.cursor()
+            cursor.execute(f"SELECT * FROM {cls.table_name} WHERE twilio_call_sid = ?", (twilio_sid,))
+            row = cursor.fetchone()
+            if row:
+                return cls.from_row(row)
+            return None
     
     @classmethod
-    def get_by_phone_number(cls, conn: sqlite3.Connection, phone_number: str, 
+    def get_by_phone_number(cls, conn: Union[DatabaseAdapter, sqlite3.Connection], phone_number: str, 
                           limit: int = 10) -> List['CallRecord']:
         """
         Get call records for a specific phone number.
         
         Args:
-            conn: Database connection
+            conn: Database connection (DatabaseAdapter or sqlite3.Connection)
             phone_number: Phone number
             limit: Maximum number of records to return
             
@@ -374,13 +428,13 @@ class CallRecord(BaseModel):
         )
     
     @classmethod
-    def get_recent_calls(cls, conn: sqlite3.Connection, limit: int = 50, 
+    def get_recent_calls(cls, conn: Union[DatabaseAdapter, sqlite3.Connection], limit: int = 50, 
                        offset: int = 0) -> List['CallRecord']:
         """
         Get recent calls.
         
         Args:
-            conn: Database connection
+            conn: Database connection (DatabaseAdapter or sqlite3.Connection)
             limit: Maximum number of records to return
             offset: Offset for pagination
             
@@ -395,12 +449,12 @@ class CallRecord(BaseModel):
         )
     
     @classmethod
-    def get_pending_calls(cls, conn: sqlite3.Connection) -> List['CallRecord']:
+    def get_pending_calls(cls, conn: Union[DatabaseAdapter, sqlite3.Connection]) -> List['CallRecord']:
         """
         Get pending calls (queued or retry scheduled).
         
         Args:
-            conn: Database connection
+            conn: Database connection (DatabaseAdapter or sqlite3.Connection)
             
         Returns:
             List of CallRecord instances
@@ -412,12 +466,12 @@ class CallRecord(BaseModel):
         )
     
     @classmethod
-    def get_active_calls(cls, conn: sqlite3.Connection) -> List['CallRecord']:
+    def get_active_calls(cls, conn: Union[DatabaseAdapter, sqlite3.Connection]) -> List['CallRecord']:
         """
         Get active calls.
         
         Args:
-            conn: Database connection
+            conn: Database connection (DatabaseAdapter or sqlite3.Connection)
             
         Returns:
             List of CallRecord instances
@@ -428,44 +482,71 @@ class CallRecord(BaseModel):
         )
     
     @classmethod
-    def get_call_stats(cls, conn: sqlite3.Connection) -> Dict:
+    def get_call_stats(cls, conn: Union[DatabaseAdapter, sqlite3.Connection]) -> Dict:
         """
         Get call statistics.
         
         Args:
-            conn: Database connection
+            conn: Database connection (DatabaseAdapter or sqlite3.Connection)
             
         Returns:
             Dictionary with call statistics
         """
-        cursor = conn.cursor()
-        
-        # Get counts by status
-        cursor.execute("""
-            SELECT status, COUNT(*) as count
-            FROM call_records
-            GROUP BY status
-        """)
-        status_counts = {row['status']: row['count'] for row in cursor.fetchall()}
-        
-        # Get total duration
-        cursor.execute("""
-            SELECT SUM(call_duration) as total_duration
-            FROM call_records
-            WHERE call_duration IS NOT NULL
-        """)
-        total_duration = cursor.fetchone()['total_duration'] or 0
-        
-        # Get counts by day for the last 7 days
-        seven_days_ago = (datetime.datetime.now() - datetime.timedelta(days=7)).isoformat()
-        cursor.execute("""
-            SELECT date(created_at) as day, COUNT(*) as count
-            FROM call_records
-            WHERE created_at >= ?
-            GROUP BY day
-            ORDER BY day
-        """, (seven_days_ago,))
-        daily_counts = {row['day']: row['count'] for row in cursor.fetchall()}
+        if isinstance(conn, DatabaseAdapter):
+            # Get counts by status
+            cursor = conn.execute("""
+                SELECT status, COUNT(*) as count
+                FROM call_records
+                GROUP BY status
+            """)
+            status_counts = {conn.row_to_dict(row)['status']: conn.row_to_dict(row)['count'] for row in cursor.fetchall()}
+            
+            # Get total duration
+            cursor = conn.execute("""
+                SELECT SUM(call_duration) as total_duration
+                FROM call_records
+                WHERE call_duration IS NOT NULL
+            """)
+            row = cursor.fetchone()
+            total_duration = conn.row_to_dict(row)['total_duration'] or 0 if row else 0
+            
+            # Get counts by day for the last 7 days
+            seven_days_ago = (datetime.datetime.now() - datetime.timedelta(days=7)).isoformat()
+            date_func = conn.get_date_function()
+            cursor = conn.execute(f"""
+                SELECT {date_func}(created_at) as day, COUNT(*) as count
+                FROM call_records
+                WHERE created_at >= ?
+                GROUP BY day
+                ORDER BY day
+            """, (seven_days_ago,))
+            daily_counts = {conn.row_to_dict(row)['day']: conn.row_to_dict(row)['count'] for row in cursor.fetchall()}
+        else:
+            # Backward compatibility
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT status, COUNT(*) as count
+                FROM call_records
+                GROUP BY status
+            """)
+            status_counts = {row['status']: row['count'] for row in cursor.fetchall()}
+            
+            cursor.execute("""
+                SELECT SUM(call_duration) as total_duration
+                FROM call_records
+                WHERE call_duration IS NOT NULL
+            """)
+            total_duration = cursor.fetchone()['total_duration'] or 0
+            
+            seven_days_ago = (datetime.datetime.now() - datetime.timedelta(days=7)).isoformat()
+            cursor.execute("""
+                SELECT date(created_at) as day, COUNT(*) as count
+                FROM call_records
+                WHERE created_at >= ?
+                GROUP BY day
+                ORDER BY day
+            """, (seven_days_ago,))
+            daily_counts = {row['day']: row['count'] for row in cursor.fetchall()}
         
         return {
             'by_status': status_counts,
@@ -524,33 +605,39 @@ class LeadRecord(BaseModel):
         self.updated_at = updated_at or self.created_at
     
     @classmethod
-    def get_by_call_id(cls, conn: sqlite3.Connection, call_id: str) -> Optional['LeadRecord']:
+    def get_by_call_id(cls, conn: Union[DatabaseAdapter, sqlite3.Connection], call_id: str) -> Optional['LeadRecord']:
         """
         Get lead record by call ID.
         
         Args:
-            conn: Database connection
+            conn: Database connection (DatabaseAdapter or sqlite3.Connection)
             call_id: Call ID
             
         Returns:
             LeadRecord or None if not found
         """
-        cursor = conn.cursor()
-        cursor.execute(f"SELECT * FROM {cls.table_name} WHERE call_id = ?", (call_id,))
-        row = cursor.fetchone()
-        
-        if row:
-            return cls.from_row(row)
-        return None
+        if isinstance(conn, DatabaseAdapter):
+            cursor = conn.execute(f"SELECT * FROM {cls.table_name} WHERE call_id = ?", (call_id,))
+            row = cursor.fetchone()
+            if row:
+                return cls(**conn.row_to_dict(row))
+            return None
+        else:
+            cursor = conn.cursor()
+            cursor.execute(f"SELECT * FROM {cls.table_name} WHERE call_id = ?", (call_id,))
+            row = cursor.fetchone()
+            if row:
+                return cls.from_row(row)
+            return None
     
     @classmethod
-    def get_recent_leads(cls, conn: sqlite3.Connection, limit: int = 50, 
+    def get_recent_leads(cls, conn: Union[DatabaseAdapter, sqlite3.Connection], limit: int = 50, 
                        offset: int = 0) -> List['LeadRecord']:
         """
         Get recent leads.
         
         Args:
-            conn: Database connection
+            conn: Database connection (DatabaseAdapter or sqlite3.Connection)
             limit: Maximum number of records to return
             offset: Offset for pagination
             
@@ -565,13 +652,13 @@ class LeadRecord(BaseModel):
         )
     
     @classmethod
-    def get_leads_by_date_range(cls, conn: sqlite3.Connection, 
+    def get_leads_by_date_range(cls, conn: Union[DatabaseAdapter, sqlite3.Connection], 
                               start_date: str, end_date: str) -> List['LeadRecord']:
         """
         Get leads within a date range.
         
         Args:
-            conn: Database connection
+            conn: Database connection (DatabaseAdapter or sqlite3.Connection)
             start_date: Start date in ISO format
             end_date: End date in ISO format
             
@@ -586,49 +673,82 @@ class LeadRecord(BaseModel):
         )
     
     @classmethod
-    def get_lead_stats(cls, conn: sqlite3.Connection) -> Dict:
+    def get_lead_stats(cls, conn: Union[DatabaseAdapter, sqlite3.Connection]) -> Dict:
         """
         Get lead statistics.
         
         Args:
-            conn: Database connection
+            conn: Database connection (DatabaseAdapter or sqlite3.Connection)
             
         Returns:
             Dictionary with lead statistics
         """
-        cursor = conn.cursor()
+        if isinstance(conn, DatabaseAdapter):
+            # Get total leads
+            cursor = conn.execute("SELECT COUNT(*) as count FROM lead_records")
+            row = cursor.fetchone()
+            total_leads = conn.row_to_dict(row)['count'] if row else 0
+            
+            # Get leads by business type
+            cursor = conn.execute("""
+                SELECT business_type, COUNT(*) as count
+                FROM lead_records
+                WHERE business_type IS NOT NULL
+                GROUP BY business_type
+            """)
+            by_business_type = {conn.row_to_dict(row)['business_type']: conn.row_to_dict(row)['count'] for row in cursor.fetchall()}
+            
+            # Get leads by day for the last 7 days
+            seven_days_ago = (datetime.datetime.now() - datetime.timedelta(days=7)).isoformat()
+            date_func = conn.get_date_function()
+            cursor = conn.execute(f"""
+                SELECT {date_func}(created_at) as day, COUNT(*) as count
+                FROM lead_records
+                WHERE created_at >= ?
+                GROUP BY day
+                ORDER BY day
+            """, (seven_days_ago,))
+            daily_counts = {conn.row_to_dict(row)['day']: conn.row_to_dict(row)['count'] for row in cursor.fetchall()}
+            
+            # Get appointment conversion rate
+            cursor = conn.execute("""
+                SELECT COUNT(*) as count
+                FROM lead_records
+                WHERE appointment_time IS NOT NULL
+            """)
+            row = cursor.fetchone()
+            appointments = conn.row_to_dict(row)['count'] if row else 0
+        else:
+            # Backward compatibility
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) as count FROM lead_records")
+            total_leads = cursor.fetchone()['count']
+            
+            cursor.execute("""
+                SELECT business_type, COUNT(*) as count
+                FROM lead_records
+                WHERE business_type IS NOT NULL
+                GROUP BY business_type
+            """)
+            by_business_type = {row['business_type']: row['count'] for row in cursor.fetchall()}
+            
+            seven_days_ago = (datetime.datetime.now() - datetime.timedelta(days=7)).isoformat()
+            cursor.execute("""
+                SELECT date(created_at) as day, COUNT(*) as count
+                FROM lead_records
+                WHERE created_at >= ?
+                GROUP BY day
+                ORDER BY day
+            """, (seven_days_ago,))
+            daily_counts = {row['day']: row['count'] for row in cursor.fetchall()}
+            
+            cursor.execute("""
+                SELECT COUNT(*) as count
+                FROM lead_records
+                WHERE appointment_time IS NOT NULL
+            """)
+            appointments = cursor.fetchone()['count']
         
-        # Get total leads
-        cursor.execute("SELECT COUNT(*) as count FROM lead_records")
-        total_leads = cursor.fetchone()['count']
-        
-        # Get leads by business type
-        cursor.execute("""
-            SELECT business_type, COUNT(*) as count
-            FROM lead_records
-            WHERE business_type IS NOT NULL
-            GROUP BY business_type
-        """)
-        by_business_type = {row['business_type']: row['count'] for row in cursor.fetchall()}
-        
-        # Get leads by day for the last 7 days
-        seven_days_ago = (datetime.datetime.now() - datetime.timedelta(days=7)).isoformat()
-        cursor.execute("""
-            SELECT date(created_at) as day, COUNT(*) as count
-            FROM lead_records
-            WHERE created_at >= ?
-            GROUP BY day
-            ORDER BY day
-        """, (seven_days_ago,))
-        daily_counts = {row['day']: row['count'] for row in cursor.fetchall()}
-        
-        # Get appointment conversion rate
-        cursor.execute("""
-            SELECT COUNT(*) as count
-            FROM lead_records
-            WHERE appointment_time IS NOT NULL
-        """)
-        appointments = cursor.fetchone()['count']
         appointment_rate = (appointments / total_leads) if total_leads > 0 else 0
         
         return {
