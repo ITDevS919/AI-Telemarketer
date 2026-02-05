@@ -106,4 +106,55 @@ export const getRegulationsStatus = () =>
 export const getRegulationsHistory = (phoneNumber: string, days: number = 30) =>
   apiClient.get<RegulationsHistoryResponse>(`/regulations/history/${encodeURIComponent(phoneNumber)}?days=${days}`);
 
+// --- Voice Management Endpoints ---
+export interface VoiceInfo {
+  name: string;
+  source_audio: string;
+  language: string;
+  created_at: string;
+}
+
+export const cloneVoice = (file: File, voiceName: string, language: string = 'en') => {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('voice_name', voiceName);
+  formData.append('language', language);
+  
+  return apiClient.post<{ message: string; voice_name: string; language: string }>(
+    '/voices/clone',
+    formData,
+    {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    }
+  );
+};
+
+export const listVoices = () => apiClient.get<VoiceInfo[]>('/voices');
+
+export const getVoiceDetails = (voiceName: string) =>
+  apiClient.get<VoiceInfo>(`/voices/${encodeURIComponent(voiceName)}`);
+
+export const deleteVoice = (voiceName: string) =>
+  apiClient.delete<{ message: string }>(`/voices/${encodeURIComponent(voiceName)}`);
+
+export const synthesizeClonedVoice = (
+  voiceName: string,
+  text: string,
+  language: string = 'en',
+) => {
+  return apiClient.post(
+    '/voices/synthesize',
+    {
+      voice_name: voiceName,
+      text,
+      language,
+    },
+    {
+      responseType: 'blob',
+    },
+  );
+};
+
 export default apiClient;

@@ -6,4 +6,12 @@ twilio
 python-dotenv
 silero-vad 
 groq>=0.9.0
-psycopg2-binary>=2.9.0 
+psycopg2-binary>=2.9.0
+# Voice Cloning (XTTS v2)
+TTS>=0.22.0
+# PyTorch 2.6+ defaults weights_only=True in torch.load; TTS checkpoints use custom classes (XttsConfig etc.), so pin <2.6
+torch>=2.0.0,<2.6.0
+# TorchAudio 2.9+ uses torchcodec (needs FFmpeg DLLs on Windows). Pin <2.9 so load() uses soundfile backend.
+torchaudio>=2.0.0,<2.9.0
+# Coqui TTS: BeamSearchScorer from top-level (before 4.57); GPT2InferenceModel needs GenerationMixin (before 4.50)
+transformers>=4.30.0,<4.50.0

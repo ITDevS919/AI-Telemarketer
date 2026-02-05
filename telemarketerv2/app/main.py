@@ -11,9 +11,9 @@ import json     # Added for parsing WebSocket messages
 from pathlib import Path # Added for checking file paths
 import os # For reading environment variables for configuration
 
-from fastapi import FastAPI, HTTPException, Body, Path as FastApiPath, WebSocket, WebSocketDisconnect # Added WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Body, Path as FastApiPath, WebSocket, WebSocketDisconnect, File, UploadFile, Form  # Added WebSocket, WebSocketDisconnect, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import PlainTextResponse # Or XMLResponse
+from fastapi.responses import PlainTextResponse, JSONResponse, StreamingResponse  # Or XMLResponse / audio streaming
 import uvicorn
 from pydantic import BaseModel # Import BaseModel
 
@@ -43,11 +43,15 @@ tts_handler_instance: Optional[TTSHandler] = None
 stt_handler_instance: Optional[STTHandler] = None
 vad_handler_instance: Optional[VADHandler] = None
 conversation_manager_instance: Optional[ConversationManager] = None
+voice_cloning_handler_instance = None  # VoiceCloningHandler instance
+
+# --- Constants ---
+MAX_SYNTH_TEXT_LENGTH = 300  # Limit text length per synthesis request for performance
 
 # --- FastAPI Application Lifespan (Startup/Shutdown) ---
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global dialer_system_instance, tts_handler_instance, stt_handler_instance, vad_handler_instance, conversation_manager_instance
+    global dialer_system_instance, tts_handler_instance, stt_handler_instance, vad_handler_instance, conversation_manager_instance, voice_cloning_handler_instance
     logger.info("FastAPI application startup...")
     
     # --- DialerSystem Initialization ---
@@ -102,7 +106,25 @@ async def lifespan(app: FastAPI):
             logger.error(err_msg)
         else:
             piper_voice_instance = PiperVoice.load(str(model_path_obj)) # PiperVoice.load expects a string path
-            tts_handler_instance = TTSHandler(tts_voice=piper_voice_instance)
+            
+            # --- Voice Cloning Handler Initialization (Optional) ---
+            try:
+                from .voice_cloning_handler import VoiceCloningHandler
+                voices_dir = os.getenv("VOICES_DIR", str(_telemarketer_v2_dir / "data" / "voices"))
+                voice_cloning_handler_instance = VoiceCloningHandler(voices_dir=voices_dir)
+                logger.info(f"Voice cloning handler initialized. Voices directory: {voices_dir}")
+            except ImportError:
+                logger.warning("Voice cloning not available (TTS library not installed). Voice cloning features will be disabled.")
+                voice_cloning_handler_instance = None
+            except Exception as e:
+                logger.warning(f"Voice cloning handler initialization failed: {e}. Voice cloning features will be disabled.")
+                voice_cloning_handler_instance = None
+            
+            # Initialize TTSHandler with voice cloning support
+            tts_handler_instance = TTSHandler(
+                tts_voice=piper_voice_instance,
+                voice_cloning_handler=voice_cloning_handler_instance
+            )
             logger.info(f"TTSHandler initialized successfully with model: {model_path_obj}")
     except ImportError:
         logger.error("Piper TTS library not found. Please install it for TTS functionality.")
@@ -267,7 +289,7 @@ async def update_dialer_settings_endpoint(settings: Dict[str, Any] = Body(...)) 
         raise HTTPException(status_code=500, detail=f"Failed to update dialer settings: {str(e)}")
 
 # Call Management Endpoints
-class AddCallPayload(BaseModel): # Changed from Dict[str, Any] to BaseModel
+class AddCallPayload(BaseModel):  # Changed from Dict[str, Any] to BaseModel
     phone_number: str
     business_type: str
     caller_id: Optional[str] = None # Added default None for optional field
@@ -359,6 +381,229 @@ async def get_lead_details_endpoint(lead_id_path: str = FastApiPath(..., alias="
     except Exception as e:
         logger.error(f"Error getting lead details for {lead_id_path}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to get lead details: {str(e)}")
+
+# Voice Management Endpoints
+@app.post("/api/voices/clone", tags=["Voices"], summary="Clone a voice from audio sample")
+async def clone_voice_endpoint(
+    file: UploadFile = File(..., description="Audio file (WAV, MP3, etc.) with 3-10 seconds of clear speech"),
+    voice_name: str = Form(..., description="Name for the cloned voice"),
+    language: str = Form("en", description="Language code (default: en)")
+):
+    """Clone a voice from an uploaded audio file."""
+    global voice_cloning_handler_instance
+    
+    if voice_cloning_handler_instance is None:
+        raise HTTPException(
+            status_code=503, 
+            detail="Voice cloning is not available. Please install TTS library (pip install TTS>=0.22.0)"
+        )
+    
+    try:
+        # Validate voice name
+        if not voice_name or not voice_name.strip():
+            raise HTTPException(status_code=400, detail="Voice name is required")
+        
+        voice_name = voice_name.strip()
+        
+        # Check if voice already exists
+        if voice_cloning_handler_instance.voice_exists(voice_name):
+            raise HTTPException(status_code=409, detail=f"Voice '{voice_name}' already exists")
+        
+        # Save uploaded file temporarily
+        import tempfile
+        with tempfile.NamedTemporaryFile(delete=False, suffix=Path(file.filename).suffix) as tmp_file:
+            tmp_path = tmp_file.name
+            content = await file.read()
+            tmp_file.write(content)
+        
+        try:
+            # Clone the voice
+            success = voice_cloning_handler_instance.clone_voice(
+                audio_sample_path=tmp_path,
+                voice_name=voice_name,
+                language=language
+            )
+            
+            if success:
+                return JSONResponse(
+                    status_code=200,
+                    content={
+                        "message": f"Voice '{voice_name}' cloned successfully",
+                        "voice_name": voice_name,
+                        "language": language
+                    }
+                )
+            else:
+                raise HTTPException(status_code=500, detail="Failed to clone voice. Please check the audio file format and quality.")
+        finally:
+            # Clean up temporary file
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+                
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error cloning voice: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to clone voice: {str(e)}")
+
+@app.get("/api/voices", tags=["Voices"], summary="List all available cloned voices")
+async def list_voices_endpoint() -> List[Dict[str, Any]]:
+    """Get a list of all available cloned voices."""
+    global voice_cloning_handler_instance
+    
+    if voice_cloning_handler_instance is None:
+        return []  # Return empty list if voice cloning not available
+    
+    try:
+        voices = voice_cloning_handler_instance.list_voices()
+        return voices
+    except Exception as e:
+        logger.error(f"Error listing voices: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to list voices: {str(e)}")
+
+@app.get("/api/voices/{voice_name}", tags=["Voices"], summary="Get details for a specific voice")
+async def get_voice_details_endpoint(
+    voice_name: str = FastApiPath(..., description="Name of the voice")
+) -> Dict[str, Any]:
+    """Get details for a specific cloned voice."""
+    global voice_cloning_handler_instance
+    
+    if voice_cloning_handler_instance is None:
+        raise HTTPException(status_code=503, detail="Voice cloning is not available")
+    
+    try:
+        voices = voice_cloning_handler_instance.list_voices()
+        voice = next((v for v in voices if v.get("name") == voice_name), None)
+        
+        if not voice:
+            raise HTTPException(status_code=404, detail=f"Voice '{voice_name}' not found")
+        
+        return voice
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting voice details for '{voice_name}': {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to get voice details: {str(e)}")
+
+@app.delete("/api/voices/{voice_name}", tags=["Voices"], summary="Delete a cloned voice")
+async def delete_voice_endpoint(
+    voice_name: str = FastApiPath(..., description="Name of the voice to delete")
+):
+    """Delete a cloned voice."""
+    global voice_cloning_handler_instance
+    
+    if voice_cloning_handler_instance is None:
+        raise HTTPException(status_code=503, detail="Voice cloning is not available")
+    
+    try:
+        if not voice_cloning_handler_instance.voice_exists(voice_name):
+            raise HTTPException(status_code=404, detail=f"Voice '{voice_name}' not found")
+        
+        success = voice_cloning_handler_instance.delete_voice(voice_name)
+        
+        if success:
+            return JSONResponse(
+                status_code=200,
+                content={"message": f"Voice '{voice_name}' deleted successfully"}
+            )
+        else:
+            raise HTTPException(status_code=500, detail=f"Failed to delete voice '{voice_name}'")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting voice '{voice_name}': {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to delete voice: {str(e)}")
+
+
+class VoiceSynthesizeRequest(BaseModel):
+    """Request body for synthesizing text with a cloned voice."""
+
+    voice_name: str
+    text: str
+    language: str = "en"
+    sample_rate: int = 22050
+
+
+@app.post(
+    "/api/voices/synthesize",
+    tags=["Voices"],
+    summary="Synthesize text using a cloned voice",
+)
+async def synthesize_voice_endpoint(payload: VoiceSynthesizeRequest):
+    """
+    Generate audio for the given text using a selected cloned voice.
+
+    Returns a WAV audio stream that can be played in-browser or downloaded.
+    """
+    global voice_cloning_handler_instance
+
+    if voice_cloning_handler_instance is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Voice cloning is not available. Please install TTS library (pip install TTS>=0.22.0)",
+        )
+
+    voice_name = (payload.voice_name or "").strip()
+    if not voice_name:
+        raise HTTPException(status_code=400, detail="voice_name is required")
+
+    text = (payload.text or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="text is required")
+
+    if len(text) > MAX_SYNTH_TEXT_LENGTH:
+        raise HTTPException(
+            status_code=400,
+            detail=f"text too long. Maximum is {MAX_SYNTH_TEXT_LENGTH} characters.",
+        )
+
+    if not voice_cloning_handler_instance.voice_exists(voice_name):
+        raise HTTPException(status_code=404, detail=f"Voice '{voice_name}' not found")
+
+    try:
+        pcm_data = voice_cloning_handler_instance.synthesize(
+            text=text,
+            voice_name=voice_name,
+            language=payload.language or "en",
+            output_sample_rate=payload.sample_rate or 22050,
+        )
+
+        if not pcm_data:
+            raise HTTPException(
+                status_code=500,
+                detail="Synthesis returned no audio. Please try again or check the voice configuration.",
+            )
+
+        # Wrap raw PCM bytes into a WAV container in-memory
+        import io
+        import wave
+
+        buffer = io.BytesIO()
+        with wave.open(buffer, "wb") as wav_file:
+            wav_file.setnchannels(1)
+            wav_file.setsampwidth(2)  # 16-bit
+            wav_file.setframerate(payload.sample_rate or 22050)
+            wav_file.writeframes(pcm_data)
+
+        buffer.seek(0)
+        filename = f"{voice_name}_sample.wav"
+
+        return StreamingResponse(
+            buffer,
+            media_type="audio/wav",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"'
+            },
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            f"Error synthesizing audio for voice '{voice_name}': {e}", exc_info=True
+        )
+        raise HTTPException(
+            status_code=500, detail=f"Failed to synthesize audio: {str(e)}"
+        )
 
 # Twilio Webhook Endpoints
 @app.post("/twilio/status/{call_id_path}", tags=["Twilio Webhooks"], summary="Twilio Call Status Callback")

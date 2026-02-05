@@ -1,5 +1,7 @@
 """
 Handles Text-to-Speech generation and streaming audio back to the client (Twilio).
+
+Supports both Piper TTS (pre-trained voices) and XTTS v2 (voice cloning).
 """
 import logging
 import io
@@ -18,22 +20,36 @@ from websockets.exceptions import ConnectionClosedOK, ConnectionClosedError # Fo
 
 logger = logging.getLogger(__name__)
 
+# Import voice cloning handler (optional)
+try:
+    from .voice_cloning_handler import VoiceCloningHandler
+    VOICE_CLONING_AVAILABLE = True
+except ImportError:
+    VOICE_CLONING_AVAILABLE = False
+    VoiceCloningHandler = None
+
 
 class TTSHandler:
     """Manages TTS synthesis and sending audio data."""
 
-    def __init__(self, tts_voice: PiperVoice):
+    def __init__(self, tts_voice: PiperVoice, voice_cloning_handler: Optional['VoiceCloningHandler'] = None):
         """
         Initializes the TTSHandler.
 
         Args:
             tts_voice: The loaded PiperVoice model instance.
+            voice_cloning_handler: Optional VoiceCloningHandler for cloned voices.
         """
         if not tts_voice:
             raise ValueError("TTS Voice (Piper) must be provided and loaded.")
         self.tts_voice = tts_voice
         self.piper_sample_rate = tts_voice.config.sample_rate
-        logger.info(f"TTSHandler initialized with Piper voice. Sample rate: {self.piper_sample_rate}Hz")
+        self.voice_cloning_handler = voice_cloning_handler
+        
+        if voice_cloning_handler:
+            logger.info(f"TTSHandler initialized with Piper voice and voice cloning support. Sample rate: {self.piper_sample_rate}Hz")
+        else:
+            logger.info(f"TTSHandler initialized with Piper voice only. Sample rate: {self.piper_sample_rate}Hz")
 
     async def send_tts_audio(
         self,
@@ -41,7 +57,8 @@ class TTSHandler:
         text_to_speak: str,
         call_sid: str,
         stream_sid: str,
-        hangup_after_speech: bool = False
+        hangup_after_speech: bool = False,
+        voice_name: Optional[str] = None
     ):
         """
         Generates TTS for the given text, resamples to 8kHz mu-law,
@@ -53,57 +70,80 @@ class TTSHandler:
             call_sid: The call SID for logging.
             stream_sid: The Twilio stream SID for sending media.
             hangup_after_speech: If True, sends a Hangup TwiML command after speech.
+            voice_name: Optional name of cloned voice to use. If None, uses Piper TTS.
         """
         if not stream_sid:
             logger.warning(f"[{call_sid}] Cannot send TTS/TwiML: stream_sid is not set.")
             return
 
         if text_to_speak:
-            logger.info(f"[{call_sid}] Generating TTS for: '{text_to_speak[:50]}...'")
+            logger.info(f"[{call_sid}] Generating TTS for: '{text_to_speak[:50]}...' (voice: {voice_name or 'piper'})")
             target_sample_rate = 8000  # Twilio expects 8kHz
 
             try:
-                pcm_data_piper_sr = b'' # Initialize
-                with io.BytesIO() as wav_io:
-                    # PiperVoice.synthesize expects a wave.Wave_write object
-                    # It will set parameters like nchannels, sampwidth, framerate internally based on its config.
-                    with wave.open(wav_io, "wb") as wav_file:
-                        self.tts_voice.synthesize(text_to_speak, wav_file)
-                    # After synthesize, wav_io contains the complete WAV file bytes
-                    full_wav_bytes = wav_io.getvalue()
+                # Check if we should use cloned voice
+                use_cloned_voice = (
+                    voice_name and 
+                    self.voice_cloning_handler and 
+                    self.voice_cloning_handler.voice_exists(voice_name)
+                )
                 
-                # Re-open the WAV bytes to read frames using the wave module for robustness
-                with io.BytesIO(full_wav_bytes) as wav_read_io:
-                    with wave.open(wav_read_io, 'rb') as wav_read_file:
-                        # Verify Piper's output format (optional but good for sanity check)
-                        # nchannels = wav_read_file.getnchannels()
-                        # sampwidth = wav_read_file.getsampwidth() # Should be 2 for 16-bit
-                        # framerate = wav_read_file.getframerate() # Should be self.piper_sample_rate
-                        # logger.debug(f"[{call_sid}] Piper WAV: {nchannels}ch, {sampwidth}bytes/sample, {framerate}Hz")
-                        if wav_read_file.getframerate() != self.piper_sample_rate:
-                            logger.warning(f"[{call_sid}] Piper output sample rate {wav_read_file.getframerate()}Hz mismatch with config {self.piper_sample_rate}Hz. Using config rate.")
-                        # Read all audio frames
-                        pcm_data_piper_sr = wav_read_file.readframes(wav_read_file.getnframes())
-
-                if not pcm_data_piper_sr:
-                    logger.error(f"[{call_sid}] TTS synthesis produced no PCM data for: '{text_to_speak[:50]}...'")
-                    return
-
-                # Convert raw PCM 16-bit bytes to a float32 tensor
-                pcm_s16_tensor_piper = torch.frombuffer(pcm_data_piper_sr, dtype=torch.int16).float() / 32768.0
-                # No .clone() needed here if the tensor isn't modified in place before resampling 
-                # and the original pcm_data_piper_sr buffer isn't needed elsewhere with its original content.
-
-                if self.piper_sample_rate != target_sample_rate:
-                    pcm_s16_tensor_8k = F.resample(pcm_s16_tensor_piper, orig_freq=self.piper_sample_rate, new_freq=target_sample_rate)
-                else:
-                    pcm_s16_tensor_8k = pcm_s16_tensor_piper
-
-                # Convert float32 tensor back to 16-bit PCM bytes
-                pcm_s16_8k_bytes = (pcm_s16_tensor_8k * 32768.0).clamp(-32768, 32767).to(torch.int16).numpy().tobytes()
+                if use_cloned_voice:
+                    # Use XTTS for cloned voice
+                    pcm_data = self.voice_cloning_handler.synthesize(
+                        text=text_to_speak,
+                        voice_name=voice_name,
+                        language="en",
+                        output_sample_rate=22050  # XTTS default
+                    )
+                    
+                    if not pcm_data:
+                        logger.error(f"[{call_sid}] XTTS synthesis failed, falling back to Piper")
+                        use_cloned_voice = False
+                    else:
+                        # Convert to tensor for resampling
+                        pcm_tensor = torch.frombuffer(pcm_data, dtype=torch.int16).float() / 32768.0
+                        # Resample from 22050 to 8000
+                        pcm_tensor_8k = F.resample(
+                            pcm_tensor.unsqueeze(0),
+                            orig_freq=22050,
+                            new_freq=target_sample_rate
+                        )
+                        pcm_data_8k = (pcm_tensor_8k.squeeze(0) * 32768.0).clamp(-32768, 32767).to(torch.int16).numpy().tobytes()
                 
+                if not use_cloned_voice:
+                    # Use Piper TTS (default)
+                    pcm_data_piper_sr = b'' # Initialize
+                    with io.BytesIO() as wav_io:
+                        # PiperVoice.synthesize expects a wave.Wave_write object
+                        with wave.open(wav_io, "wb") as wav_file:
+                            self.tts_voice.synthesize(text_to_speak, wav_file)
+                        full_wav_bytes = wav_io.getvalue()
+                    
+                    # Re-open the WAV bytes to read frames
+                    with io.BytesIO(full_wav_bytes) as wav_read_io:
+                        with wave.open(wav_read_io, 'rb') as wav_read_file:
+                            if wav_read_file.getframerate() != self.piper_sample_rate:
+                                logger.warning(f"[{call_sid}] Piper output sample rate {wav_read_file.getframerate()}Hz mismatch with config {self.piper_sample_rate}Hz. Using config rate.")
+                            pcm_data_piper_sr = wav_read_file.readframes(wav_read_file.getnframes())
+
+                    if not pcm_data_piper_sr:
+                        logger.error(f"[{call_sid}] TTS synthesis produced no PCM data for: '{text_to_speak[:50]}...'")
+                        return
+
+                    # Convert raw PCM 16-bit bytes to a float32 tensor
+                    pcm_s16_tensor_piper = torch.frombuffer(pcm_data_piper_sr, dtype=torch.int16).float() / 32768.0
+
+                    if self.piper_sample_rate != target_sample_rate:
+                        pcm_s16_tensor_8k = F.resample(pcm_s16_tensor_piper, orig_freq=self.piper_sample_rate, new_freq=target_sample_rate)
+                    else:
+                        pcm_s16_tensor_8k = pcm_s16_tensor_piper
+
+                    # Convert float32 tensor back to 16-bit PCM bytes
+                    pcm_data_8k = (pcm_s16_tensor_8k * 32768.0).clamp(-32768, 32767).to(torch.int16).numpy().tobytes()
+
                 # Convert 16-bit linear PCM to 8-bit mu-law
-                mulaw_audio_bytes = audioop.lin2ulaw(pcm_s16_8k_bytes, 2) # 2 indicates 2 bytes per sample (16-bit)
+                mulaw_audio_bytes = audioop.lin2ulaw(pcm_data_8k, 2) # 2 indicates 2 bytes per sample (16-bit)
                 base64_mulaw = base64.b64encode(mulaw_audio_bytes).decode('utf-8')
 
                 media_message = {
@@ -126,6 +166,8 @@ class TTSHandler:
                 return
             except audioop.error as audio_err:
                 logger.error(f"[{call_sid}] Audioop error during TTS processing for '{text_to_speak[:30]}...': {audio_err}")
+            except Exception as e:
+                logger.error(f"[{call_sid}] Error during TTS synthesis: {e}", exc_info=True)
 
         elif hangup_after_speech:
             logger.info(f"[{call_sid}] No text to speak, but hangup_after_speech is true. Proceeding to hangup.")

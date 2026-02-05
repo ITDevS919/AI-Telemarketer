@@ -3,6 +3,7 @@ import { NavLink, Route, Routes } from 'react-router-dom';
 import DashboardPage from './pages/DashboardPage';
 import CallsPage from './pages/CallsPage';
 import SettingsPage from './pages/SettingsPage';
+import VoiceManager from './components/VoiceManager';
 import './assets/base.css';
 import './assets/main.css';
 import './assets/app-styles.css';
@@ -25,6 +26,9 @@ const App: React.FC = () => {
           <NavLink to="/settings" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
             Settings
           </NavLink>
+          <NavLink to="/voices" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
+            Voices
+          </NavLink>
         </nav>
 
         <main className="app-content">
@@ -32,6 +36,7 @@ const App: React.FC = () => {
             <Route path="/" element={<DashboardPage />} />
             <Route path="/calls" element={<CallsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/voices" element={<VoiceManager />} />
           </Routes>
         </main>
       </div>
