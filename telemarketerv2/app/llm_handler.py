@@ -57,14 +57,15 @@ class LLMHandler:
             }
 
     def _load_main_script(self) -> str:
-        """Load the main 5-step script content."""
+        """Load the main 5-step / 16-sub-step script content (5_Steps_Marketing_Updated.md)."""
         try:
-            # Adjust the path as per your project structure
-            script_path = Path(__file__).parent.parent / "data" / "scripts" / "5_steps_script.md"
-            with open(script_path, 'r') as f:
+            script_path = Path(__file__).parent.parent / "data" / "scripts" / "5_Steps_Marketing_Updated.md"
+            if not script_path.exists():
+                script_path = Path(__file__).parent.parent / "data" / "scripts" / "5_steps_script.md"
+            with open(script_path, "r", encoding="utf-8") as f:
                 return f.read()
         except Exception as e:
-            logger.error(f"Error loading 5_steps_script.md: {e}")
+            logger.error(f"Error loading script: {e}")
             return "Error: Main script could not be loaded. Please proceed with caution."
 
     async def get_initial_greeting(

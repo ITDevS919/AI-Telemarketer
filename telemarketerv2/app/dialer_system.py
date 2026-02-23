@@ -14,6 +14,7 @@ import time
 import uuid
 import random
 import re
+from urllib.parse import quote_plus
 from typing import Dict, List, Optional, Set, Any, Tuple
 from enum import Enum
 import sqlite3
@@ -591,10 +592,17 @@ class DialerSystem:
             if self.twilio_client and TWILIO_AVAILABLE and self.ngrok_websocket_url:
                 from twilio.twiml.voice_response import VoiceResponse, Connect, Stream
 
-                # Construct TwiML to connect to WebSocket stream
+                # Construct TwiML to connect to WebSocket stream (optional: voice_name + scripted for Version A)
                 response = VoiceResponse()
                 connect = Connect()
-                stream_url = f"{self.ngrok_websocket_url}/ws/stream?business_type={business_type}&call_id={call_id}"
+                voice_name = call.get("voice_name") or os.environ.get("DIALER_SCRIPTED_VOICE_NAME", "")
+                use_scripted = call.get("scripted")
+                scripted_mode = use_scripted if use_scripted is not None else (os.environ.get("DIALER_SCRIPTED_MODE", "").lower() in ("true", "1", "yes"))
+                stream_url = f"{self.ngrok_websocket_url}/ws/stream?business_type={quote_plus(business_type or '')}&call_id={quote_plus(call_id)}"
+                if voice_name:
+                    stream_url += f"&voice_name={quote_plus(voice_name)}"
+                if scripted_mode:
+                    stream_url += "&scripted=1"
                 connect.append(Stream(url=stream_url))
                 response.append(connect)
                 response.pause(length=60)

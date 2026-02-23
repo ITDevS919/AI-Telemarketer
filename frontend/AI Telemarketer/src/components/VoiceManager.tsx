@@ -161,10 +161,19 @@ const VoiceManager: React.FC = () => {
     }
   };
 
+  const formatCreatedAt = (voice: VoiceInfo): string => {
+    const raw = voice.created_at;
+    if (!raw) return '—';
+    const d = new Date(raw);
+    return isNaN(d.getTime()) ? raw : d.toLocaleDateString();
+  };
+
   return (
     <div className="section">
       <h2>Voice Management</h2>
-      <p>Clone voices from audio samples and manage cloned voices for telemarketing calls.</p>
+      <p>
+        Clone voices from audio samples using <strong>ElevenLabs</strong> and manage them for telemarketing calls.
+      </p>
 
       {/* Status Messages */}
       {error && (
@@ -281,7 +290,7 @@ const VoiceManager: React.FC = () => {
                 <div>
                   <strong>{voice.name}</strong>
                   <div style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)', marginTop: '0.25rem' }}>
-                    Language: {voice.language} | Created: {new Date(voice.created_at).toLocaleDateString()}
+                    Language: {voice.language} | Created: {formatCreatedAt(voice)}
                   </div>
                 </div>
                 <button
@@ -371,12 +380,15 @@ const VoiceManager: React.FC = () => {
       {/* Instructions */}
       <div className="section" style={{ marginTop: '2rem', backgroundColor: 'var(--color-info-bg)' }}>
         <h3>Instructions</h3>
+        <p style={{ marginBottom: '0.5rem' }}>
+          Voice cloning is powered by <strong>ElevenLabs</strong>. Ensure <code>ELEVENLABS_API_KEY</code> is set in the backend.
+        </p>
         <ul style={{ marginLeft: '1.5rem' }}>
-          <li>Upload 3-10 seconds of clear speech audio (WAV or MP3 format)</li>
+          <li>Upload 3–10 seconds of clear speech audio (WAV or MP3 format)</li>
           <li>Ensure the audio has minimal background noise</li>
           <li>Use a unique name for each voice</li>
           <li>After cloning, the voice can be used in telemarketing calls</li>
-          <li>Cloned voices are stored locally in the <code>data/voices/</code> directory</li>
+          <li>Cloned voices are stored in the backend <code>data/voices/</code> directory and linked to ElevenLabs</li>
         </ul>
       </div>
     </div>

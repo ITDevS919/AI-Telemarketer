@@ -1,161 +1,301 @@
 """
 Conversation Manager for handling script-based telemarketing conversations.
-"""
-import logging
-from typing import Dict, List, Optional, Any
-from pathlib import Path
-import asyncio
 
-from fastapi import WebSocket # For type hinting
+Supports two modes:
+- Scripted (Version A): Deterministic 5-step / 16-sub-step delivery using
+  structured script; optional cloned voice.
+- Interactive (Version B): LLM-driven responses with script as context; Piper or UK voice.
+"""
+
+import logging
+import re
+from typing import Dict, List, Optional, Any
+
+from fastapi import WebSocket
 
 from .llm_handler import LLMHandler
 from .tts_handler import TTSHandler
+from .structured_script import get_structured_script, ScriptSegment, StructuredScript
 
 logger = logging.getLogger(__name__)
 
+
+def _classify_sentiment(transcript: str) -> str:
+    """Classify user response for scripted branching: positive, negative, more_info, neutral."""
+    t = (transcript or "").strip().lower()
+    if not t:
+        return "neutral"
+    # Positive
+    if re.search(r"\b(yes|yeah|sure|sounds good|interested|tell me more|go on|ok|okay|please)\b", t):
+        return "positive"
+    if re.search(r"\b(not interested|no thanks|busy|not now|don't need|no thank you)\b", t):
+        return "negative"
+    if re.search(r"\b(what is it|what do you do|tell me about|information|explain|how does it)\b", t):
+        return "more_info"
+    if re.search(r"\b(no|nope)\b", t) and len(t) < 30:
+        return "negative"
+    return "neutral"
+
+
 class ConversationManager:
-    def __init__(self, llm_handler: LLMHandler, tts_handler: TTSHandler, script_path: str = "telemarketerv2/data/scripts/5_steps_script.md"):
+    def __init__(
+        self,
+        llm_handler: LLMHandler,
+        tts_handler: TTSHandler,
+        script_path: str = "telemarketerv2/data/scripts/5_Steps_Marketing_Updated.md",
+    ):
         self.llm_handler = llm_handler
         self.tts_handler = tts_handler
         self.script_path = script_path
-        self.script: Optional[str] = None # Loaded script content
+        self.script: Optional[str] = None
         self.current_step: int = 0
         self.conversation_history: List[Dict[str, str]] = []
-        
-        # Per-call state (could be moved to a separate class if complex)
+
         self.active_call_websockets: Dict[str, WebSocket] = {}
         self.active_call_stream_sids: Dict[str, str] = {}
+        self.active_call_voice_name: Dict[str, Optional[str]] = {}
+        self.active_call_scripted: Dict[str, bool] = {}
+        self.active_call_segment_index: Dict[str, int] = {}
 
-        # Load script on initialization
         self._load_script()
-        logger.info(f"ConversationManager initialized. Script path: {script_path}")
+        self._structured_script: Optional[StructuredScript] = get_structured_script(script_path)
+        logger.info("ConversationManager initialized. Script path: %s", script_path)
 
-    def _load_script(self):
+    def _load_script(self) -> None:
         try:
-            with open(self.script_path, 'r', encoding='utf-8') as f:
+            with open(self.script_path, "r", encoding="utf-8") as f:
                 self.script = f.read()
-            logger.info(f"Script loaded successfully from {self.script_path}")
+            logger.info("Script loaded successfully from %s", self.script_path)
         except FileNotFoundError:
-            logger.error(f"Script file not found at {self.script_path}. ConversationManager will not function correctly.")
+            logger.error("Script file not found at %s", self.script_path)
             self.script = "SCRIPT_NOT_FOUND"
         except Exception as e:
-            logger.error(f"Error loading script: {e}", exc_info=True)
+            logger.error("Error loading script: %s", e, exc_info=True)
             self.script = "SCRIPT_LOAD_ERROR"
 
-    async def initialize_conversation(self, call_sid: str, business_type: Optional[str], websocket: WebSocket, stream_sid: str):
-        """Initialize a new conversation for a call when WebSocket stream starts."""
-        logger.info(f"[{call_sid}] Initializing conversation. Business type: {business_type}")
-        self.current_step = 1 # Reset or set to initial step
-        self.conversation_history = [] # Clear history for new call
+    def _voice_for_call(self, call_sid: str) -> Optional[str]:
+        return self.active_call_voice_name.get(call_sid)
+
+    async def initialize_conversation(
+        self,
+        call_sid: str,
+        business_type: Optional[str],
+        websocket: WebSocket,
+        stream_sid: str,
+        voice_name: Optional[str] = None,
+        scripted_mode: bool = False,
+    ) -> None:
+        """Initialize a new conversation. If scripted_mode=True, use structured 5-step script and optional cloned voice."""
+        logger.info(
+            "[%s] Initializing conversation. business_type=%s voice_name=%s scripted=%s",
+            call_sid,
+            business_type,
+            voice_name,
+            scripted_mode,
+        )
+        self.current_step = 1
+        self.conversation_history = []
         self.active_call_websockets[call_sid] = websocket
         self.active_call_stream_sids[call_sid] = stream_sid
-        
-        # TODO: Consider if an initial greeting should be sent from here
-        # or if the LLM should generate it based on the first handle_user_input (even if empty for system start)
-        # For now, assume first interaction comes from user (or VAD indicating user is ready to speak)
-        # Or, send an initial greeting/prompt immediately.
-        initial_greeting = "Hello, I\'m calling from ProAutomation Solutions. Is the business owner available?"
-        logger.info(f"[{call_sid}] Sending initial greeting: {initial_greeting}")
+        self.active_call_voice_name[call_sid] = voice_name
+        self.active_call_scripted[call_sid] = scripted_mode
+        self.active_call_segment_index[call_sid] = 0
+
+        if scripted_mode and self._structured_script:
+            first = self._structured_script.get_first_segment()
+            if first:
+                text = self._structured_script.get_speech_for_segment(first)
+                self.conversation_history.append({"role": "assistant", "content": text})
+                await self.tts_handler.send_tts_audio(
+                    websocket=websocket,
+                    text_to_speak=text,
+                    call_sid=call_sid,
+                    stream_sid=stream_sid,
+                    voice_name=voice_name,
+                )
+                logger.info("[%s] Scripted mode: sent first segment (Step 1A).", call_sid)
+                return
+
+        initial_greeting = (
+            "Hi, can I speak to the owner please? It's nothing serious. It's just a quick introductory call."
+        )
         self.conversation_history.append({"role": "assistant", "content": initial_greeting})
         await self.tts_handler.send_tts_audio(
             websocket=websocket,
             text_to_speak=initial_greeting,
             call_sid=call_sid,
-            stream_sid=stream_sid
+            stream_sid=stream_sid,
+            voice_name=voice_name,
         )
-        logger.info(f"[{call_sid}] Initial greeting sent.")
-    
+        logger.info("[%s] Initial greeting sent.", call_sid)
+
     async def handle_user_input(self, transcript: str, call_sid: Optional[str] = None) -> None:
-        """
-        Handle user input and generate appropriate response.
-        call_sid is now optional here as it should be known when conversation is initialized.
-        If a call_sid is passed, it will be used, otherwise assumes context is already set.
-        """
-        current_call_sid = call_sid or self._get_call_sid_from_context() # Helper to get current call_sid
+        """Handle user input: scripted mode uses structured script + branching; else LLM."""
+        current_call_sid = call_sid or self._get_call_sid_from_context()
         if not current_call_sid:
             logger.error("handle_user_input called without call_sid context.")
             return
 
         websocket = self.active_call_websockets.get(current_call_sid)
         stream_sid = self.active_call_stream_sids.get(current_call_sid)
-
         if not websocket or not stream_sid:
-            logger.error(f"[{current_call_sid}] No active websocket or stream_sid for handling user input.")
+            logger.error("[%s] No active websocket or stream_sid.", current_call_sid)
             return
 
+        voice_name = self._voice_for_call(current_call_sid)
+        scripted = self.active_call_scripted.get(current_call_sid, False)
+
         try:
-            if not self.script or self.script in ["SCRIPT_NOT_FOUND", "SCRIPT_LOAD_ERROR"]:
-                logger.error(f"[{current_call_sid}] Attempted to handle user input but script is not loaded or failed to load.")
-                fallback_error = "I apologize, I\'m having some technical difficulties with my script right now."
-                await self.tts_handler.send_tts_audio(websocket, fallback_error, current_call_sid, stream_sid)
+            if scripted and self._structured_script:
+                await self._handle_scripted_input(
+                    current_call_sid,
+                    transcript,
+                    websocket,
+                    stream_sid,
+                    voice_name,
+                )
                 return
-                
-            logger.info(f"[{current_call_sid}] Handling user input for step {self.current_step}")
-            logger.debug(f"[{current_call_sid}] User transcript: {transcript}")
-            
-            self.conversation_history.append({"role": "user", "content": transcript})
-            
-            response = await self.llm_handler.get_response(
-                script=self.script,
-                conversation_history=self.conversation_history[-10:],
-                current_transcript=transcript,
-                current_step=self.current_step
+
+            await self._handle_interactive_input(
+                current_call_sid,
+                transcript,
+                websocket,
+                stream_sid,
+                voice_name,
             )
-            
-            self.conversation_history.append({"role": "assistant", "content": response})
-            
+        except Exception as e:
+            logger.error("[%s] Error handling user input: %s", current_call_sid, e, exc_info=True)
+            fallback = "I apologize, but I'm having trouble processing that. Could you please repeat?"
             await self.tts_handler.send_tts_audio(
                 websocket=websocket,
-                text_to_speak=response,
+                text_to_speak=fallback,
                 call_sid=current_call_sid,
-                stream_sid=stream_sid
+                stream_sid=stream_sid,
+                voice_name=voice_name,
             )
-            
-            if "[HANGUP]" in response or "NEXT_STEP: HANGUP" in response: # Example trigger for hangup
-                logger.info(f"[{current_call_sid}] LLM indicated hangup. Response: {response}")
-                # TTS handler might take care of sending hangup TwiML if configured
-                # Or we can explicitly close WebSocket or send hangup TwiML from here/DialerSystem
-                # For now, assume TTS has an option or we rely on stream stop
-            elif "NEXT_STEP" in response: # Placeholder for advancing step based on LLM
-                try:
-                    # Simple example: NEXT_STEP: 3
-                    step_val = response.split("NEXT_STEP:")[-1].strip().split()[0]
-                    if step_val.isdigit():
-                        self.current_step = int(step_val)
-                        logger.info(f"[{current_call_sid}] LLM indicated NEXT_STEP. Advanced to step {self.current_step}")
-                    else:
-                        logger.warning(f"[{current_call_sid}] LLM indicated NEXT_STEP but value is not a digit: {step_val}")
-                except Exception as e:
-                    logger.warning(f"[{current_call_sid}] Could not parse NEXT_STEP from LLM response: {response}. Error: {e}")
-            
-        except Exception as e:
-            logger.error(f"[{current_call_sid}] Error handling user input: {e}", exc_info=True)
-            fallback = "I apologize, but I\'m having trouble processing that. Could you please repeat?"
-            await self.tts_handler.send_tts_audio(websocket, fallback, current_call_sid, stream_sid)
-    
+
+    async def _handle_scripted_input(
+        self,
+        call_sid: str,
+        transcript: str,
+        websocket: WebSocket,
+        stream_sid: str,
+        voice_name: Optional[str],
+    ) -> None:
+        """Advance structured script and speak next segment (or objection/email exit)."""
+        idx = self.active_call_segment_index.get(call_sid, 0)
+        script = self._structured_script
+        assert script is not None
+
+        current = script.get_segment_by_index(idx)
+        if not current:
+            logger.warning("[%s] Scripted: no segment at index %s", call_sid, idx)
+            return
+
+        self.conversation_history.append({"role": "user", "content": transcript})
+        sentiment = _classify_sentiment(transcript)
+
+        to_speak: Optional[str] = None
+        next_idx = idx
+
+        if sentiment == "negative" and (current.objection_lines or current.email_exit_lines):
+            to_speak = script.get_objection_response(current)
+            if not to_speak and current.email_exit_lines:
+                to_speak = script.get_email_exit_response(current)
+            # Don't advance segment; we stay for possible email exit on next turn
+        if not to_speak:
+            next_seg = script.get_next_segment(current, sentiment)
+            if next_seg is not None:
+                to_speak = script.get_speech_for_segment(next_seg)
+                next_idx = next(
+                    (i for i, s in enumerate(script.segments) if s is next_seg),
+                    idx + 1,
+                )
+            elif idx + 1 < len(script.segments):
+                next_seg = script.get_segment_by_index(idx + 1)
+                if next_seg:
+                    to_speak = script.get_speech_for_segment(next_seg)
+                    next_idx = idx + 1
+        if not to_speak:
+            to_speak = script.get_speech_for_segment(current)
+            if idx + 1 < len(script.segments):
+                next_idx = idx + 1
+
+        if to_speak:
+            self.active_call_segment_index[call_sid] = next_idx
+            self.conversation_history.append({"role": "assistant", "content": to_speak})
+            await self.tts_handler.send_tts_audio(
+                websocket=websocket,
+                text_to_speak=to_speak,
+                call_sid=call_sid,
+                stream_sid=stream_sid,
+                voice_name=voice_name,
+            )
+            logger.info("[%s] Scripted: sent segment (index %s)", call_sid, next_idx)
+
+    async def _handle_interactive_input(
+        self,
+        call_sid: str,
+        transcript: str,
+        websocket: WebSocket,
+        stream_sid: str,
+        voice_name: Optional[str],
+    ) -> None:
+        """LLM-based response using script as context (Version B style)."""
+        if not self.script or self.script in ("SCRIPT_NOT_FOUND", "SCRIPT_LOAD_ERROR"):
+            fallback = "I apologize, I'm having some technical difficulties with my script right now."
+            await self.tts_handler.send_tts_audio(
+                websocket=websocket,
+                text_to_speak=fallback,
+                call_sid=call_sid,
+                stream_sid=stream_sid,
+                voice_name=voice_name,
+            )
+            return
+
+        logger.info("[%s] Handling user input for step %s", call_sid, self.current_step)
+        self.conversation_history.append({"role": "user", "content": transcript})
+
+        response = await self.llm_handler.get_response(
+            script=self.script,
+            conversation_history=self.conversation_history[-10:],
+            current_transcript=transcript,
+            current_step=self.current_step,
+        )
+        self.conversation_history.append({"role": "assistant", "content": response})
+
+        await self.tts_handler.send_tts_audio(
+            websocket=websocket,
+            text_to_speak=response,
+            call_sid=call_sid,
+            stream_sid=stream_sid,
+            voice_name=voice_name,
+        )
+
+        if "NEXT_STEP" in response:
+            try:
+                step_val = response.split("NEXT_STEP:")[-1].strip().split()[0]
+                if step_val.isdigit():
+                    self.current_step = int(step_val)
+                    logger.info("[%s] Advanced to step %s", call_sid, self.current_step)
+            except Exception:
+                pass
+
     def _get_call_sid_from_context(self) -> Optional[str]:
-        """Helper to get current call_sid if only one active call or unambiguous context."""
-        # This is a simplified placeholder. In a multi-call scenario, 
-        # call_sid must be explicitly passed or reliably determined.
         if len(self.active_call_websockets) == 1:
             return list(self.active_call_websockets.keys())[0]
-        # Add more sophisticated context determination if needed, or remove if call_sid is always passed.
         return None
 
-    async def handle_call_stop(self, call_sid: str):
-        """Handle call stop/end, clean up resources for that call."""
-        logger.info(f"[{call_sid}] Handling call stop/cleanup in ConversationManager.")
+    async def handle_call_stop(self, call_sid: str) -> None:
+        logger.info("[%s] Handling call stop/cleanup.", call_sid)
         self.active_call_websockets.pop(call_sid, None)
         self.active_call_stream_sids.pop(call_sid, None)
-        # Potentially log final conversation history or trigger other post-call actions here
-        # final_history = self.get_conversation_history(call_sid) # This would need call_sid specific history
-        # logger.info(f"[{call_sid}] Final conversation history: {final_history}")
-        # For now, history is global to the manager, reset on new init_conversation.
+        self.active_call_voice_name.pop(call_sid, None)
+        self.active_call_scripted.pop(call_sid, None)
+        self.active_call_segment_index.pop(call_sid, None)
 
-    def get_conversation_history(self) -> List[Dict[str, str]]: # Potentially add call_sid if history becomes per-call
-        """Get the current conversation history."""
+    def get_conversation_history(self) -> List[Dict[str, str]]:
         return self.conversation_history
-    
-    def get_current_step(self) -> int: # Potentially add call_sid
-        """Get the current step in the script."""
-        return self.current_step 
+
+    def get_current_step(self) -> int:
+        return self.current_step

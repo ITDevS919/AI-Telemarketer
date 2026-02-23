@@ -2,10 +2,11 @@ from dotenv import load_dotenv
 load_dotenv() # Load environment variables from .env file at the very beginning
 
 import asyncio
+import time
 from contextlib import asynccontextmanager
 import logging
 from typing import Dict, List, Any, Optional
-import base64 # Added for audio processing
+import base64
 import audioop  # Added for mu-law to PCM conversion
 import json     # Added for parsing WebSocket messages
 from pathlib import Path # Added for checking file paths
@@ -111,10 +112,11 @@ async def lifespan(app: FastAPI):
             try:
                 from .voice_cloning_handler import VoiceCloningHandler
                 voices_dir = os.getenv("VOICES_DIR", str(_telemarketer_v2_dir / "data" / "voices"))
-                voice_cloning_handler_instance = VoiceCloningHandler(voices_dir=voices_dir)
+                elevenlabs_api_key = os.getenv("ELEVENLABS_API_KEY")
+                voice_cloning_handler_instance = VoiceCloningHandler(voices_dir=voices_dir, api_key=elevenlabs_api_key)
                 logger.info(f"Voice cloning handler initialized. Voices directory: {voices_dir}")
             except ImportError:
-                logger.warning("Voice cloning not available (TTS library not installed). Voice cloning features will be disabled.")
+                logger.warning("Voice cloning not available (ElevenLabs SDK not installed). Voice cloning features will be disabled.")
                 voice_cloning_handler_instance = None
             except Exception as e:
                 logger.warning(f"Voice cloning handler initialization failed: {e}. Voice cloning features will be disabled.")
@@ -159,9 +161,9 @@ async def lifespan(app: FastAPI):
 
     # --- ConversationManager Initialization ---
     try:
-        # Robust absolute path for the default script, similar to TTS model
-        _default_script_filename = "5_steps_script.md"
-        _default_cm_script_abs_path_str = str(_telemarketer_v2_dir / "data" / "scripts" / _default_script_filename) # _telemarketer_v2_dir defined in TTS section
+        # Robust absolute path for the default script (5 steps / 16 sub-steps)
+        _default_script_filename = "5_Steps_Marketing_Updated.md"
+        _default_cm_script_abs_path_str = str(_telemarketer_v2_dir / "data" / "scripts" / _default_script_filename)
 
         cm_script_path_to_check = os.getenv("CM_SCRIPT_PATH", _default_cm_script_abs_path_str)
         
@@ -395,7 +397,7 @@ async def clone_voice_endpoint(
     if voice_cloning_handler_instance is None:
         raise HTTPException(
             status_code=503, 
-            detail="Voice cloning is not available. Please install TTS library (pip install TTS>=0.22.0)"
+            detail="Voice cloning is not available. Install the ElevenLabs SDK (pip install elevenlabs) and set ELEVENLABS_API_KEY."
         )
     
     try:
@@ -409,21 +411,31 @@ async def clone_voice_endpoint(
         if voice_cloning_handler_instance.voice_exists(voice_name):
             raise HTTPException(status_code=409, detail=f"Voice '{voice_name}' already exists")
         
-        # Save uploaded file temporarily
-        import tempfile
-        with tempfile.NamedTemporaryFile(delete=False, suffix=Path(file.filename).suffix) as tmp_file:
-            tmp_path = tmp_file.name
-            content = await file.read()
-            tmp_file.write(content)
+        # Ensure we have a valid audio extension for the temp file (ElevenLabs rejects files without one)
+        suffix = (Path(file.filename or "").suffix or "").lower()
+        if suffix not in (".wav", ".mp3", ".mpeg"):
+            content_type = (file.content_type or "").lower()
+            if "mpeg" in content_type or "mp3" in content_type:
+                suffix = ".mp3"
+            else:
+                suffix = ".wav"
+        if not suffix.startswith("."):
+            suffix = ".wav"
         
+        import tempfile
+        content = await file.read()
+        if not content:
+            raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp_file:
+            tmp_path = tmp_file.name
+            tmp_file.write(content)
+            tmp_file.flush()
         try:
-            # Clone the voice
             success = voice_cloning_handler_instance.clone_voice(
                 audio_sample_path=tmp_path,
                 voice_name=voice_name,
                 language=language
             )
-            
             if success:
                 return JSONResponse(
                     status_code=200,
@@ -433,8 +445,24 @@ async def clone_voice_endpoint(
                         "language": language
                     }
                 )
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error cloning voice: {e}", exc_info=True)
+            msg = str(e)
+            if "missing_permissions" in msg and "create_instant_voice_clone" in msg:
+                detail = (
+                    "Your ElevenLabs API key does not have permission to create instant voice clones. "
+                    "Upgrade your plan or use an API key with the 'create_instant_voice_clone' permission."
+                )
+            elif "invalid_audio" in msg or "corrupted" in msg or "playable" in msg:
+                detail = (
+                    "ElevenLabs rejected the audio file. Use 3–10 seconds of clear speech, "
+                    "WAV or MP3 format, and ensure the file plays correctly in a media player."
+                )
             else:
-                raise HTTPException(status_code=500, detail="Failed to clone voice. Please check the audio file format and quality.")
+                detail = f"Clone failed: {msg}"
+            raise HTTPException(status_code=500, detail=detail)
         finally:
             # Clean up temporary file
             if os.path.exists(tmp_path):
@@ -540,7 +568,7 @@ async def synthesize_voice_endpoint(payload: VoiceSynthesizeRequest):
     if voice_cloning_handler_instance is None:
         raise HTTPException(
             status_code=503,
-            detail="Voice cloning is not available. Please install TTS library (pip install TTS>=0.22.0)",
+            detail="Voice cloning is not available. Install the ElevenLabs SDK (pip install elevenlabs) and set ELEVENLABS_API_KEY.",
         )
 
     voice_name = (payload.voice_name or "").strip()
@@ -635,7 +663,13 @@ async def twilio_input_webhook(request_data: Dict = Body(...), call_id_path: str
 
 # --- WebSocket Endpoint for Twilio Media Stream ---
 @app.websocket("/ws/stream")
-async def websocket_stream_endpoint(websocket: WebSocket, business_type: Optional[str] = None, call_id: Optional[str] = None):
+async def websocket_stream_endpoint(
+    websocket: WebSocket,
+    business_type: Optional[str] = None,
+    call_id: Optional[str] = None,
+    voice_name: Optional[str] = None,
+    scripted: Optional[str] = None,
+):
     # Ensure handlers are initialized
     if not vad_handler_instance or not stt_handler_instance or not conversation_manager_instance or not tts_handler_instance:
         logger.error(f"[{call_id}] WebSocket connection rejected: Core handlers (VAD, STT, ConversationManager, TTS) not initialized.")
@@ -643,7 +677,8 @@ async def websocket_stream_endpoint(websocket: WebSocket, business_type: Optiona
         return
 
     await websocket.accept()
-    logger.info(f"WebSocket connection accepted for call_id: {call_id}, business_type: {business_type}")
+    scripted_mode = scripted and scripted.lower() in ("true", "1", "yes")
+    logger.info(f"WebSocket connection accepted for call_id: {call_id}, business_type: {business_type}, voice_name: {voice_name}, scripted: {scripted_mode}")
     
     # Store this websocket connection if DialerSystem needs to access it directly (e.g., to send proactive messages or hangup)
     # This might involve a WebSocketManager class or a dict in DialerSystem
@@ -657,6 +692,11 @@ async def websocket_stream_endpoint(websocket: WebSocket, business_type: Optiona
     # Speech segments detected by VAD for STT
     speech_segments_for_stt = bytearray()
     is_speech_active = False
+    # Real-time STT: partial transcripts while user is speaking
+    last_partial_stt_time = 0.0
+    stt_partials_enabled = os.getenv("REALTIME_STT_PARTIALS", "true").lower() in ("true", "1", "yes")
+    stt_partial_interval_sec = int(os.getenv("REALTIME_STT_PARTIAL_INTERVAL_MS", "400")) / 1000.0
+    stt_partial_min_bytes = int(os.getenv("REALTIME_STT_PARTIAL_MIN_BYTES", "8000"))  # ~0.5s at 16kHz 16-bit
 
     try:
         while True:
@@ -673,10 +713,12 @@ async def websocket_stream_endpoint(websocket: WebSocket, business_type: Optiona
                 # Potentially initialize conversation here if not done earlier
                 if conversation_manager_instance:
                     await conversation_manager_instance.initialize_conversation(
-                        call_sid=call_sid_internal, 
-                        business_type=business_type, 
-                        websocket=websocket, # Pass websocket for TTS
-                        stream_sid=stream_sid_twilio # Pass stream_sid for TTS
+                        call_sid=call_sid_internal,
+                        business_type=business_type,
+                        websocket=websocket,
+                        stream_sid=stream_sid_twilio,
+                        voice_name=voice_name,
+                        scripted_mode=scripted_mode,
                     )
 
             elif event == "media":
@@ -699,7 +741,7 @@ async def websocket_stream_endpoint(websocket: WebSocket, business_type: Optiona
 
                     # 3. Resample 8kHz PCM to 16kHz PCM for VAD/STT
                     # Convert bytes to float tensor, normalize
-                    pcm_8k_s16_tensor = torch.from_buffer(pcm_8k_s16_bytes, dtype=torch.int16).float() / 32768.0
+                    pcm_8k_s16_tensor = torch.frombuffer(pcm_8k_s16_bytes, dtype=torch.int16).float() / 32768.0
                     
                     # Resample (input tensor needs to be 1D or 2D [channels, samples])
                     # If pcm_8k_s16_tensor is already 1D, it's fine. Add channel dim if needed: .unsqueeze(0)
@@ -733,12 +775,28 @@ async def websocket_stream_endpoint(websocket: WebSocket, business_type: Optiona
                         # vad_result is now a boolean from SileroVADHandler
                         vad_is_speech = await vad_handler_instance.process_audio_chunk(current_chunk_for_vad)
 
-                        if vad_is_speech: # Changed from vad_result == "SPEECH"
+                        if vad_is_speech:
                             if not is_speech_active:
                                 logger.debug(f"[{call_sid_internal}] VAD: Speech started.")
                                 is_speech_active = True
-                            speech_segments_for_stt.extend(current_chunk_for_vad) # Accumulate the chunk that had speech
-                        elif is_speech_active: # Speech was active, but this chunk is silence - end of speech segment
+                                last_partial_stt_time = 0.0
+                            speech_segments_for_stt.extend(current_chunk_for_vad)
+                            # Real-time STT: emit partial transcript while user is still speaking
+                            if (
+                                stt_partials_enabled
+                                and len(speech_segments_for_stt) >= stt_partial_min_bytes
+                                and (time.monotonic() - last_partial_stt_time) >= stt_partial_interval_sec
+                            ):
+                                try:
+                                    partial_transcript = await stt_handler_instance.transcribe_audio_bytes(
+                                        bytes(speech_segments_for_stt)
+                                    )
+                                    if partial_transcript:
+                                        logger.info(f"[{call_sid_internal}] STT [partial]: '{partial_transcript}'")
+                                    last_partial_stt_time = time.monotonic()
+                                except Exception as pe:
+                                    logger.debug(f"[{call_sid_internal}] Partial STT error: {pe}")
+                        elif is_speech_active:  # Speech ended (silence after speech)
                             logger.debug(f"[{call_sid_internal}] VAD: Speech ended. Segment length: {len(speech_segments_for_stt)} bytes.")
                             is_speech_active = False
                             if len(speech_segments_for_stt) > VAD_MIN_SPEECH_BYTES: # Use defined constant
@@ -747,12 +805,9 @@ async def websocket_stream_endpoint(websocket: WebSocket, business_type: Optiona
                                 logger.info(f"[{call_sid_internal}] STT Result: '{transcript}'")
                                 
                                 if transcript and conversation_manager_instance:
-                                    # ConversationManager handles LLM and TTS response
                                     await conversation_manager_instance.handle_user_input(
                                         transcript=transcript,
-                                        # websocket=websocket, # Already passed during init_conversation
-                                        # call_sid=call_sid_internal,
-                                        # stream_sid=stream_sid_twilio
+                                        call_sid=call_sid_internal,
                                     )
                             else:
                                 logger.debug(f"[{call_sid_internal}] Discarding short speech segment.")

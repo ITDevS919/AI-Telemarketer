@@ -1,8 +1,9 @@
 import axios, { AxiosError } from 'axios';
 import type { AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 
+const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000').replace(/\/$/, '');
 const apiClient = axios.create({
-  baseURL: 'http://localhost:8000/api', // Adjust if your backend runs on a different port/host
+  baseURL: `${API_BASE}/api`,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -106,27 +107,31 @@ export const getRegulationsStatus = () =>
 export const getRegulationsHistory = (phoneNumber: string, days: number = 30) =>
   apiClient.get<RegulationsHistoryResponse>(`/regulations/history/${encodeURIComponent(phoneNumber)}?days=${days}`);
 
-// --- Voice Management Endpoints ---
+// --- Voice Management Endpoints (ElevenLabs) ---
 export interface VoiceInfo {
   name: string;
-  source_audio: string;
+  source_audio?: string;
   language: string;
-  created_at: string;
+  created_at?: string;
+  elevenlabs_voice_id?: string;
+  description?: string;
 }
 
 export const cloneVoice = (file: File, voiceName: string, language: string = 'en') => {
   const formData = new FormData();
-  formData.append('file', file);
+  const ext = file.name?.match(/\.(wav|mp3|mpeg)$/i)?.[1]?.toLowerCase()
+    || (file.type?.includes('mpeg') || file.type?.includes('mp3') ? 'mp3' : 'wav');
+  const safeName = file.name?.trim() && /\.(wav|mp3|mpeg)$/i.test(file.name)
+    ? file.name
+    : `audio.${ext}`;
+  formData.append('file', file, safeName);
   formData.append('voice_name', voiceName);
   formData.append('language', language);
-  
   return apiClient.post<{ message: string; voice_name: string; language: string }>(
     '/voices/clone',
     formData,
     {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
+      headers: { 'Content-Type': undefined } as unknown as Record<string, string>,
     }
   );
 };

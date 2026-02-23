@@ -1,24 +1,33 @@
 """
 Handles Text-to-Speech generation and streaming audio back to the client (Twilio).
 
-Supports both Piper TTS (pre-trained voices) and XTTS v2 (voice cloning).
+Supports both Piper TTS (pre-trained voices) and ElevenLabs (voice cloning).
+Real-time TTS: audio is sent in 20ms frames (Twilio standard). Piper can be
+synthesized sentence-by-sentence for faster time-to-first-byte.
 """
 import logging
 import io
+import re
 import wave
 import json
 import base64
 import audioop
 import asyncio
-from typing import Optional
+import os
+from typing import Optional, List
 
 import torch
 import torchaudio.functional as F
-from fastapi import WebSocket # Assuming WebSocket type from FastAPI
+from fastapi import WebSocket
 from piper.voice import PiperVoice
-from websockets.exceptions import ConnectionClosedOK, ConnectionClosedError # For catching closure
+from websockets.exceptions import ConnectionClosedOK, ConnectionClosedError
 
 logger = logging.getLogger(__name__)
+
+# Twilio Media Streams: 20ms frames at 8kHz = 160 samples = 320 bytes PCM 16-bit = 160 bytes mu-law
+TTS_FRAME_MS = 20
+TTS_SAMPLE_RATE_TWILIO = 8000
+TTS_FRAME_BYTES_PCM = (TTS_FRAME_MS * TTS_SAMPLE_RATE_TWILIO // 1000) * 2  # 320
 
 # Import voice cloning handler (optional)
 try:
@@ -51,6 +60,42 @@ class TTSHandler:
         else:
             logger.info(f"TTSHandler initialized with Piper voice only. Sample rate: {self.piper_sample_rate}Hz")
 
+    async def _send_pcm_as_stream(
+        self,
+        websocket: WebSocket,
+        pcm_data_8k: bytes,
+        stream_sid: str,
+        call_sid: str,
+    ) -> None:
+        """Send 16-bit PCM at 8kHz in 20ms mu-law frames (real-time TTS delivery)."""
+        n = len(pcm_data_8k)
+        offset = 0
+        while offset < n:
+            chunk = pcm_data_8k[offset : offset + TTS_FRAME_BYTES_PCM]
+            if not chunk:
+                break
+            offset += len(chunk)
+            if len(chunk) < TTS_FRAME_BYTES_PCM:
+                chunk = chunk.ljust(TTS_FRAME_BYTES_PCM, b"\x00")
+            mulaw_bytes = audioop.lin2ulaw(chunk, 2)
+            base64_mulaw = base64.b64encode(mulaw_bytes).decode("utf-8")
+            media_message = {
+                "event": "media",
+                "streamSid": stream_sid,
+                "media": {"payload": base64_mulaw},
+            }
+            await websocket.send_text(json.dumps(media_message))
+        logger.debug(f"[{call_sid}] Streamed {offset} bytes in 20ms frames")
+
+    @staticmethod
+    def _split_sentences(text: str) -> List[str]:
+        """Split text into sentences for chunked Piper synthesis."""
+        text = (text or "").strip()
+        if not text:
+            return []
+        parts = re.split(r"(?<=[.!?])\s+", text)
+        return [p.strip() for p in parts if p.strip()]
+
     async def send_tts_audio(
         self,
         websocket: WebSocket,
@@ -58,114 +103,132 @@ class TTSHandler:
         call_sid: str,
         stream_sid: str,
         hangup_after_speech: bool = False,
-        voice_name: Optional[str] = None
+        voice_name: Optional[str] = None,
     ):
         """
-        Generates TTS for the given text, resamples to 8kHz mu-law,
-        streams it back over the WebSocket connection. Optionally hangs up the call.
-
-        Args:
-            websocket: The active WebSocket connection.
-            text_to_speak: The text to synthesize.
-            call_sid: The call SID for logging.
-            stream_sid: The Twilio stream SID for sending media.
-            hangup_after_speech: If True, sends a Hangup TwiML command after speech.
-            voice_name: Optional name of cloned voice to use. If None, uses Piper TTS.
+        Generates TTS for the given text, resamples to 8kHz, and streams it in 20ms
+        frames over the WebSocket (real-time TTS). Optionally hangs up the call.
         """
         if not stream_sid:
             logger.warning(f"[{call_sid}] Cannot send TTS/TwiML: stream_sid is not set.")
             return
 
-        if text_to_speak:
-            logger.info(f"[{call_sid}] Generating TTS for: '{text_to_speak[:50]}...' (voice: {voice_name or 'piper'})")
-            target_sample_rate = 8000  # Twilio expects 8kHz
+        use_streaming = os.getenv("REALTIME_TTS_STREAMING", "true").lower() in ("true", "1", "yes")
+        target_sample_rate = TTS_SAMPLE_RATE_TWILIO
 
+        if text_to_speak:
+            logger.info(f"[{call_sid}] Generating TTS for: '{text_to_speak[:50]}...' (voice: {voice_name or 'piper'}, streaming={use_streaming})")
             try:
-                # Check if we should use cloned voice
                 use_cloned_voice = (
-                    voice_name and 
-                    self.voice_cloning_handler and 
-                    self.voice_cloning_handler.voice_exists(voice_name)
+                    voice_name
+                    and self.voice_cloning_handler
+                    and self.voice_cloning_handler.voice_exists(voice_name)
                 )
-                
+
                 if use_cloned_voice:
-                    # Use XTTS for cloned voice
                     pcm_data = self.voice_cloning_handler.synthesize(
                         text=text_to_speak,
                         voice_name=voice_name,
                         language="en",
-                        output_sample_rate=22050  # XTTS default
+                        output_sample_rate=22050,
                     )
-                    
                     if not pcm_data:
-                        logger.error(f"[{call_sid}] XTTS synthesis failed, falling back to Piper")
+                        logger.error(f"[{call_sid}] ElevenLabs synthesis failed, falling back to Piper")
                         use_cloned_voice = False
                     else:
-                        # Convert to tensor for resampling
                         pcm_tensor = torch.frombuffer(pcm_data, dtype=torch.int16).float() / 32768.0
-                        # Resample from 22050 to 8000
                         pcm_tensor_8k = F.resample(
                             pcm_tensor.unsqueeze(0),
                             orig_freq=22050,
-                            new_freq=target_sample_rate
+                            new_freq=target_sample_rate,
                         )
-                        pcm_data_8k = (pcm_tensor_8k.squeeze(0) * 32768.0).clamp(-32768, 32767).to(torch.int16).numpy().tobytes()
-                
+                        pcm_data_8k = (
+                            (pcm_tensor_8k.squeeze(0) * 32768.0)
+                            .clamp(-32768, 32767)
+                            .to(torch.int16)
+                            .numpy()
+                            .tobytes()
+                        )
+                        if use_streaming:
+                            await self._send_pcm_as_stream(websocket, pcm_data_8k, stream_sid, call_sid)
+                        else:
+                            mulaw_bytes = audioop.lin2ulaw(pcm_data_8k, 2)
+                            base64_mulaw = base64.b64encode(mulaw_bytes).decode("utf-8")
+                            await websocket.send_text(
+                                json.dumps(
+                                    {"event": "media", "streamSid": stream_sid, "media": {"payload": base64_mulaw}}
+                                )
+                            )
+
                 if not use_cloned_voice:
-                    # Use Piper TTS (default)
-                    pcm_data_piper_sr = b'' # Initialize
-                    with io.BytesIO() as wav_io:
-                        # PiperVoice.synthesize expects a wave.Wave_write object
-                        with wave.open(wav_io, "wb") as wav_file:
-                            self.tts_voice.synthesize(text_to_speak, wav_file)
-                        full_wav_bytes = wav_io.getvalue()
-                    
-                    # Re-open the WAV bytes to read frames
-                    with io.BytesIO(full_wav_bytes) as wav_read_io:
-                        with wave.open(wav_read_io, 'rb') as wav_read_file:
-                            if wav_read_file.getframerate() != self.piper_sample_rate:
-                                logger.warning(f"[{call_sid}] Piper output sample rate {wav_read_file.getframerate()}Hz mismatch with config {self.piper_sample_rate}Hz. Using config rate.")
-                            pcm_data_piper_sr = wav_read_file.readframes(wav_read_file.getnframes())
-
-                    if not pcm_data_piper_sr:
-                        logger.error(f"[{call_sid}] TTS synthesis produced no PCM data for: '{text_to_speak[:50]}...'")
-                        return
-
-                    # Convert raw PCM 16-bit bytes to a float32 tensor
-                    pcm_s16_tensor_piper = torch.frombuffer(pcm_data_piper_sr, dtype=torch.int16).float() / 32768.0
-
-                    if self.piper_sample_rate != target_sample_rate:
-                        pcm_s16_tensor_8k = F.resample(pcm_s16_tensor_piper, orig_freq=self.piper_sample_rate, new_freq=target_sample_rate)
+                    # Piper: optional sentence-by-sentence for faster time-to-first-byte
+                    piper_stream_sentences = use_streaming and os.getenv("REALTIME_TTS_PIPER_SENTENCE_STREAM", "true").lower() in ("true", "1", "yes")
+                    if piper_stream_sentences:
+                        sentences = self._split_sentences(text_to_speak)
+                        if not sentences:
+                            sentences = [text_to_speak]
+                        for sent in sentences:
+                            if not sent:
+                                continue
+                            with io.BytesIO() as wav_io:
+                                with wave.open(wav_io, "wb") as wav_file:
+                                    self.tts_voice.synthesize(sent, wav_file)
+                                full_wav_bytes = wav_io.getvalue()
+                            with io.BytesIO(full_wav_bytes) as wav_read_io:
+                                with wave.open(wav_read_io, "rb") as wav_read_file:
+                                    pcm_piper = wav_read_file.readframes(wav_read_file.getnframes())
+                            if not pcm_piper:
+                                continue
+                            pcm_t = torch.frombuffer(pcm_piper, dtype=torch.int16).float() / 32768.0
+                            if self.piper_sample_rate != target_sample_rate:
+                                pcm_t = F.resample(
+                                    pcm_t.unsqueeze(0),
+                                    orig_freq=self.piper_sample_rate,
+                                    new_freq=target_sample_rate,
+                                ).squeeze(0)
+                            pcm_8k = (pcm_t * 32768.0).clamp(-32768, 32767).to(torch.int16).numpy().tobytes()
+                            await self._send_pcm_as_stream(websocket, pcm_8k, stream_sid, call_sid)
                     else:
-                        pcm_s16_tensor_8k = pcm_s16_tensor_piper
+                        with io.BytesIO() as wav_io:
+                            with wave.open(wav_io, "wb") as wav_file:
+                                self.tts_voice.synthesize(text_to_speak, wav_file)
+                            full_wav_bytes = wav_io.getvalue()
+                        with io.BytesIO(full_wav_bytes) as wav_read_io:
+                            with wave.open(wav_read_io, "rb") as wav_read_file:
+                                pcm_data_piper_sr = wav_read_file.readframes(wav_read_file.getnframes())
+                        if not pcm_data_piper_sr:
+                            logger.error(f"[{call_sid}] TTS produced no PCM for: '{text_to_speak[:50]}...'")
+                            return
+                        pcm_s16_tensor_piper = torch.frombuffer(pcm_data_piper_sr, dtype=torch.int16).float() / 32768.0
+                        if self.piper_sample_rate != target_sample_rate:
+                            pcm_s16_tensor_8k = F.resample(
+                                pcm_s16_tensor_piper.unsqueeze(0),
+                                orig_freq=self.piper_sample_rate,
+                                new_freq=target_sample_rate,
+                            ).squeeze(0)
+                        else:
+                            pcm_s16_tensor_8k = pcm_s16_tensor_piper
+                        pcm_data_8k = (pcm_s16_tensor_8k * 32768.0).clamp(-32768, 32767).to(torch.int16).numpy().tobytes()
+                        if use_streaming:
+                            await self._send_pcm_as_stream(websocket, pcm_data_8k, stream_sid, call_sid)
+                        else:
+                            mulaw_bytes = audioop.lin2ulaw(pcm_data_8k, 2)
+                            base64_mulaw = base64.b64encode(mulaw_bytes).decode("utf-8")
+                            await websocket.send_text(
+                                json.dumps(
+                                    {"event": "media", "streamSid": stream_sid, "media": {"payload": base64_mulaw}}
+                                )
+                            )
 
-                    # Convert float32 tensor back to 16-bit PCM bytes
-                    pcm_data_8k = (pcm_s16_tensor_8k * 32768.0).clamp(-32768, 32767).to(torch.int16).numpy().tobytes()
-
-                # Convert 16-bit linear PCM to 8-bit mu-law
-                mulaw_audio_bytes = audioop.lin2ulaw(pcm_data_8k, 2) # 2 indicates 2 bytes per sample (16-bit)
-                base64_mulaw = base64.b64encode(mulaw_audio_bytes).decode('utf-8')
-
-                media_message = {
-                    "event": "media",
-                    "streamSid": stream_sid,
-                    "media": {"payload": base64_mulaw}
-                }
-                await websocket.send_text(json.dumps(media_message))
-                
-                mark_message = {
-                    "event": "mark",
-                    "streamSid": stream_sid,
-                    "mark": {"name": "tts_finished"}
-                }
+                mark_message = {"event": "mark", "streamSid": stream_sid, "mark": {"name": "tts_finished"}}
                 await websocket.send_text(json.dumps(mark_message))
                 logger.info(f"[{call_sid}] Sent TTS finished mark for '{text_to_speak[:30]}...'.")
 
             except (ConnectionClosedOK, ConnectionClosedError) as ws_err:
-                logger.warning(f"[{call_sid}] WebSocket closed during TTS sending for '{text_to_speak[:30]}...': {ws_err}")
+                logger.warning(f"[{call_sid}] WebSocket closed during TTS: {ws_err}")
                 return
             except audioop.error as audio_err:
-                logger.error(f"[{call_sid}] Audioop error during TTS processing for '{text_to_speak[:30]}...': {audio_err}")
+                logger.error(f"[{call_sid}] Audioop error during TTS: {audio_err}")
             except Exception as e:
                 logger.error(f"[{call_sid}] Error during TTS synthesis: {e}", exc_info=True)
 
@@ -192,6 +255,5 @@ class TTSHandler:
             except Exception as e:
                 logger.error(f"[{call_sid}] Error sending Hangup TwiML: {e}", exc_info=True)
 
-# Note: This handler assumes the PiperVoice model is loaded and passed during initialization.
-# It doesn't handle streaming TTS generation chunk-by-chunk, but processes the whole synthesized audio.
-# For very long TTS responses, a chunking approach within this handler might be needed later. 
+# Real-time TTS: set REALTIME_TTS_STREAMING=true (default) to send audio in 20ms frames.
+# For Piper, set REALTIME_TTS_PIPER_SENTENCE_STREAM=true (default) to synthesize and send sentence-by-sentence.
