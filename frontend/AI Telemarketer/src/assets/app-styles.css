@@ -440,8 +440,32 @@
 
 /* Section cards – SingleCallForm, ControlPanel, CallList, CallDetail */
 .section.single-call-form button,
-.section.control-panel button {
+.section.control-panel button,
+.section.dialer-control button {
   margin-top: 0;
+}
+
+.section.dialer-control .dialer-control-row {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.section.dialer-control .dialer-start-btn {
+  background: var(--color-primary, #2563eb);
+  color: #fff;
+}
+
+.section.dialer-control .dialer-start-btn:hover:not(:disabled) {
+  background: var(--color-primary-hover, #1d4ed8);
+}
+
+.section.dialer-control .dialer-status-text {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  margin-top: 0.25rem;
 }
 
 .section .status-area {

@@ -1,5 +1,6 @@
 import React from 'react';
 import HealthStatus from '../components/HealthStatus';
+import DialerControl from '../components/DialerControl';
 import SingleCallForm from '../components/SingleCallForm';
 import ControlPanel from '../components/ControlPanel';
 import RegulationChecker from '../components/RegulationChecker';
@@ -16,6 +17,10 @@ const DashboardPage: React.FC = () => {
       </div>
 
       <HealthStatus />
+
+      <div className="dialer-section">
+        <DialerControl />
+      </div>
 
       <div className="regulations-section">
         <RegulationChecker />

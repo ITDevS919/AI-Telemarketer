@@ -138,10 +138,17 @@ ngrok config add-authtoken YOUR_NGROK_AUTH_TOKEN
 ngrok http 8000
 ```
 
-**Important:** Copy the `wss://` URL from ngrok (it will look like `wss://xxxx-xx-xx-xx-xx.ngrok-free.app`) and update your `.env` file:
-```env
-NGROK_WEBSOCKET_URL=wss://xxxx-xx-xx-xx-xx.ngrok-free.app
-```
+### 3.4 How to set NGROK_WEBSOCKET_URL
+
+1. With the backend running on port 8000, run: **`ngrok http 8000`** (in a separate terminal).
+2. ngrok will show a forwarding URL, e.g. **`https://abc123.ngrok-free.app`**.
+3. In `telemarketerv2/.env`, set **`NGROK_WEBSOCKET_URL`** to the **same host** but with **`wss://`** (WebSocket Secure), not `https://`:
+   ```env
+   NGROK_WEBSOCKET_URL=wss://abc123.ngrok-free.app
+   ```
+4. Restart the backend after changing `.env`. Twilio will connect to `wss://your-subdomain.ngrok-free.app/ws/stream` when placing calls.
+
+**Important:** Use **`wss://`** for the WebSocket; using `https://` will prevent Twilio from connecting to the media stream.
 
 **Note:** The ngrok URL changes each time you restart ngrok (unless you have a paid plan with a static domain).
 

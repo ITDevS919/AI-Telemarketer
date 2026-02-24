@@ -108,6 +108,18 @@ class DatabaseAdapter:
             self.conn = None
             logger.info("Database connection closed")
     
+    def cursor(self):
+        """
+        Return a new cursor. Use this so code can call db_conn.cursor() when
+        db_conn is a DatabaseAdapter. For PostgreSQL, uses RealDictCursor so
+        rows are dict-like (column names as keys).
+        """
+        if not self.conn:
+            self.connect()
+        if self.db_type == "postgresql" and POSTGRESQL_AVAILABLE:
+            return self.conn.cursor(cursor_factory=RealDictCursor)
+        return self.conn.cursor()
+
     def get_parameter_placeholder(self) -> str:
         """Get the parameter placeholder for the database type"""
         if self.db_type == "sqlite":

@@ -356,12 +356,15 @@ class DialerSystem:
             else:
                 # Backward compatibility with direct sqlite3 connection
                 cursor = self.db_conn.cursor()
-                cursor.execute("SELECT call_id FROM call_records WHERE call_id = ?", 
-                              (call_record["call_id"],))
+                cursor.execute(
+                    self.db_conn.format_query("SELECT call_id FROM call_records WHERE call_id = ?"),
+                    (call_record["call_id"],),
+                )
                 exists = cursor.fetchone()
                 
                 if exists:
-                    cursor.execute("""
+                    cursor.execute(
+                        self.db_conn.format_query("""
                         UPDATE call_records SET
                         status = ?,
                         retry_count = ?,
@@ -370,7 +373,8 @@ class DialerSystem:
                         regulation_violation = ?,
                         updated_at = ?
                         WHERE call_id = ?
-                    """, (
+                    """),
+                        (
                         call_record["status"],
                         call_record.get("retry_count", 0),
                         call_record.get("scheduled_time", datetime.datetime.now().isoformat()),
@@ -378,15 +382,18 @@ class DialerSystem:
                         call_record.get("regulation_violation"),
                         datetime.datetime.now().isoformat(),
                         call_record["call_id"]
-                    ))
+                        ),
+                    )
                 else:
-                    cursor.execute("""
+                    cursor.execute(
+                        self.db_conn.format_query("""
                         INSERT INTO call_records (
                             call_id, phone_number, business_type, caller_id,
                             status, retry_count, created_at, scheduled_time,
                             last_error, regulation_violation, updated_at
                         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (
+                    """),
+                        (
                         call_record["call_id"],
                         call_record["phone_number"],
                         call_record["business_type"],
@@ -398,7 +405,8 @@ class DialerSystem:
                         call_record.get("last_error"),
                         call_record.get("regulation_violation"),
                         datetime.datetime.now().isoformat()
-                    ))
+                    ),
+                    )
                     
                 self.db_conn.commit()
         except Exception as e:
@@ -979,11 +987,14 @@ class DialerSystem:
         try:
             cursor = self.db_conn.cursor()
             # Check if a lead for this call_id already exists, if so, update, else insert
-            cursor.execute("SELECT lead_id FROM lead_records WHERE call_id = ?", (call_id,))
+            cursor.execute(
+                self.db_conn.format_query("SELECT lead_id FROM lead_records WHERE call_id = ?"),
+                (call_id,),
+            )
             existing_lead = cursor.fetchone()
 
             if existing_lead:
-                existing_lead_id = existing_lead[0]
+                existing_lead_id = existing_lead["lead_id"] if isinstance(existing_lead, dict) else existing_lead[0]
                 lead_data.pop("created_at", None) # Don't update created_at
                 lead_data.pop("lead_id", None)
                 lead_data.pop("call_id", None)
@@ -993,13 +1004,13 @@ class DialerSystem:
                 set_clause = ", ".join([f"{key} = ?" for key in lead_data.keys()])
                 params = list(lead_data.values()) + [existing_lead_id]
                 
-                sql = f"UPDATE lead_records SET {set_clause} WHERE lead_id = ?"
+                sql = self.db_conn.format_query(f"UPDATE lead_records SET {set_clause} WHERE lead_id = ?")
                 cursor.execute(sql, params)
                 logger.info(f"[{call_id}] Updated existing lead record {existing_lead_id} for event {event_type}.")
             else:
                 columns = ", ".join(lead_data.keys())
                 placeholders = ", ".join(["?" for _ in lead_data.keys()])
-                sql = f"INSERT INTO lead_records ({columns}) VALUES ({placeholders})"
+                sql = self.db_conn.format_query(f"INSERT INTO lead_records ({columns}) VALUES ({placeholders})")
                 cursor.execute(sql, list(lead_data.values()))
                 logger.info(f"[{call_id}] Created new lead record {lead_id} for event {event_type}.")
             
@@ -1031,7 +1042,10 @@ class DialerSystem:
             
         try:
             cursor = self.db_conn.cursor()
-            cursor.execute("SELECT * FROM call_records WHERE call_id = ?", (call_id,))
+            cursor.execute(
+                self.db_conn.format_query("SELECT * FROM call_records WHERE call_id = ?"),
+                (call_id,),
+            )
             call_record = cursor.fetchone()
             
             if call_record:
@@ -1075,11 +1089,14 @@ class DialerSystem:
             
         try:
             cursor = self.db_conn.cursor()
-            cursor.execute("""
+            cursor.execute(
+                self.db_conn.format_query("""
                 SELECT * FROM call_records 
                 ORDER BY created_at DESC
                 LIMIT ? OFFSET ?
-            """, (limit, offset))
+            """),
+                (limit, offset),
+            )
             
             call_records = cursor.fetchall()
             return [dict(record) for record in call_records]
@@ -1104,11 +1121,14 @@ class DialerSystem:
             
         try:
             cursor = self.db_conn.cursor()
-            cursor.execute("""
+            cursor.execute(
+                self.db_conn.format_query("""
                 SELECT * FROM lead_records 
                 ORDER BY created_at DESC
                 LIMIT ? OFFSET ?
-            """, (limit, offset))
+            """),
+                (limit, offset),
+            )
             
             lead_records = cursor.fetchall()
             return [dict(record) for record in lead_records]

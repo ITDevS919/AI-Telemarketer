@@ -1,5 +1,6 @@
 import logging
 # import webrtcvad # Commented out
+import numpy as np
 import torch
 import torchaudio # Often used with Silero for resampling if needed, or for types
 
@@ -71,8 +72,8 @@ class VADHandler:
             return False
 
         try:
-            # Convert PCM 16-bit bytes to float32 tensor
-            audio_int16 = torch.from_numpy(memoryview(audio_chunk_bytes).cast('h')) # 'h' is short (int16)
+            # Convert PCM 16-bit bytes to float32 tensor (numpy buffer then torch; from_numpy expects ndarray)
+            audio_int16 = torch.from_numpy(np.frombuffer(audio_chunk_bytes, dtype=np.int16))
             audio_float32 = audio_int16.to(torch.float32) / 32768.0
             
             # Move tensor to the correct device

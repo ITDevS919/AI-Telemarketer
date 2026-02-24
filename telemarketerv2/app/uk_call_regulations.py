@@ -272,7 +272,7 @@ class UKCallRegulator:
             return False
         
         # Check if current hour is within permitted range
-        start_hour = hours.get("start", 9)  # Default 9 AM
+        start_hour = hours.get("start", 5)  # Default 9 AM
         end_hour = hours.get("end", 19)     # Default 7 PM
         
         return start_hour <= hour < end_hour
@@ -281,8 +281,8 @@ class UKCallRegulator:
         """Get permitted calling hours by day of week"""
         # Default UK calling hours: 9 AM to 7 PM weekdays, 10 AM to 2 PM Saturday, none on Sunday
         return {
-            "Monday": {"start": 9, "end": 19},
-            "Tuesday": {"start": 9, "end": 19},
+            "Monday": {"start": 5, "end": 19},
+            "Tuesday": {"start": 5, "end": 19},
             "Wednesday": {"start": 9, "end": 19},
             "Thursday": {"start": 9, "end": 19},
             "Friday": {"start": 9, "end": 19},

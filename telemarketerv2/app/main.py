@@ -331,12 +331,45 @@ async def add_batch_calls_endpoint(calls: List[AddCallPayload] = Body(...)) -> D
         logger.error(f"Error adding batch calls: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to add batch calls: {str(e)}")
 
+def _parse_to_unix_ts(value: Any) -> Optional[int]:
+    """Parse created_at/started_at (ISO string, datetime, or number) to Unix seconds."""
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return int(value)
+    try:
+        from datetime import datetime
+        if hasattr(value, "timestamp"):
+            return int(value.timestamp())
+        s = str(value).replace("Z", "+00:00")
+        return int(datetime.fromisoformat(s).timestamp())
+    except Exception:
+        return None
+
+
+def _call_record_to_frontend_list(record: Dict[str, Any]) -> Dict[str, Any]:
+    """Map DB call record to the shape the frontend CallList expects (call_sid, to_number, state, etc.)."""
+    start_ts = _parse_to_unix_ts(record.get("created_at")) or _parse_to_unix_ts(record.get("started_at"))
+    out = {
+        "call_sid": record.get("call_id"),
+        "to_number": record.get("phone_number"),
+        "state": record.get("status"),
+        "lead_status": record.get("lead_status"),
+        "start_time": start_ts,
+        "duration": record.get("call_duration"),
+        **record,
+    }
+    # DB has a nullable call_sid column that overwrites the above; keep call_id as the list SID
+    out["call_sid"] = record.get("call_id") or out.get("call_sid")
+    return out
+
+
 @app.get("/api/calls/recent", tags=["Calls"], summary="Get recent call records")
 async def get_recent_calls_endpoint(limit: int = 50, offset: int = 0) -> List[Dict[str, Any]]:
     dialer = get_dialer_system()
     try:
         recent_calls = await dialer.get_recent_calls(limit=limit, offset=offset)
-        return recent_calls
+        return [_call_record_to_frontend_list(r) for r in recent_calls]
     except Exception as e:
         logger.error(f"Error getting recent calls: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to get recent calls: {str(e)}")
@@ -348,6 +381,9 @@ async def get_call_details_endpoint(call_id_path: str = FastApiPath(..., alias="
         call_details = await dialer.get_call_details(call_id_path)
         if not call_details:
             raise HTTPException(status_code=404, detail="Call not found")
+        # Frontend CallDetail expects call_sid; ensure it exists for display
+        if "call_sid" not in call_details and "call_id" in call_details:
+            call_details = {**call_details, "call_sid": call_details["call_id"]}
         return call_details
     except HTTPException:
         raise
