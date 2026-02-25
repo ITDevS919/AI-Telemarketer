@@ -225,4 +225,24 @@ class LLMHandler:
             
         except Exception as e:
             logger.error(f"[{call_sid}] Error generating response from script: {e}", exc_info=True)
-            return "I apologize, I'm experiencing a technical difficulty. Let's end this call.", True 
+            return "I apologize, I'm experiencing a technical difficulty. Let's end this call.", True
+
+    async def get_response(
+        self,
+        script: str,
+        conversation_history: List[Dict[str, str]],
+        current_transcript: str,
+        current_step: int,
+    ) -> str:
+        """
+        Version B (interactive): Get LLM response from script context and conversation.
+        Used by ConversationManager when scripted_mode=False.
+        """
+        response_text, _ = await self.generate_response(
+            call_sid="",
+            transcript=current_transcript,
+            conversation_history=conversation_history,
+            business_type=MAKING_MONEY,
+            state=1,
+        )
+        return response_text or ""

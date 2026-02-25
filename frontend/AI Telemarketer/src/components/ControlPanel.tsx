@@ -1,5 +1,8 @@
-import React, { useState } from 'react';
-import { addBatchCalls } from '../services/api';
+import React, { useState, useEffect } from 'react';
+import { addBatchCalls, listVoices } from '../services/api';
+import type { VoiceInfo } from '../services/api';
+
+type CallMode = 'A' | 'B';
 
 interface StatusMessage {
   message: string;
@@ -8,13 +11,22 @@ interface StatusMessage {
 
 const ControlPanel: React.FC = () => {
   const [input, setInput] = useState('');
+  const [mode, setMode] = useState<CallMode>('B');
+  const [clonedVoiceName, setClonedVoiceName] = useState<string>('');
+  const [voices, setVoices] = useState<VoiceInfo[]>([]);
   const [isStarting, setIsStarting] = useState(false);
   const [status, setStatus] = useState<StatusMessage>({ message: '', type: null });
+
+  useEffect(() => {
+    listVoices()
+      .then((res) => setVoices(Array.isArray(res.data) ? res.data : []))
+      .catch(() => setVoices([]));
+  }, []);
 
   const parseLines = () => {
     setStatus({ message: '', type: null });
     const lines = input.trim().split('\n');
-    const requests: { phone_number: string; business_type: string }[] = [];
+    const requests: { phone_number: string; business_type: string; scripted?: boolean; voice_name?: string }[] = [];
     let error: string | null = null;
 
     lines.forEach((line, idx) => {
@@ -31,7 +43,13 @@ const ControlPanel: React.FC = () => {
         error = `Error parsing line ${idx + 1}: Invalid format or empty values.`;
         return;
       }
-      requests.push({ phone_number: phone, business_type: bt });
+      const req: { phone_number: string; business_type: string; scripted?: boolean; voice_name?: string } = {
+        phone_number: phone,
+        business_type: bt,
+      };
+      req.scripted = mode === 'A';
+      if (mode === 'A' && clonedVoiceName.trim()) req.voice_name = clonedVoiceName.trim();
+      requests.push(req);
     });
 
     if (error) {
@@ -79,6 +97,39 @@ const ControlPanel: React.FC = () => {
   return (
     <div className="section control-panel">
       <h2>Control Panel</h2>
+      <div className="form-row">
+        <div className="form-group">
+          <label htmlFor="batch-mode">Mode (for all calls):</label>
+          <select
+            id="batch-mode"
+            value={mode}
+            disabled={isStarting}
+            onChange={(e) => setMode(e.target.value as CallMode)}
+            title="Version A = scripted; Version B = interactive LLM"
+          >
+            <option value="B">Version B (Interactive)</option>
+            <option value="A">Version A (Scripted)</option>
+          </select>
+        </div>
+        {mode === 'A' && (
+          <div className="form-group">
+            <label htmlFor="batch-voice">Cloned voice (optional):</label>
+            <select
+              id="batch-voice"
+              value={clonedVoiceName}
+              disabled={isStarting}
+              onChange={(e) => setClonedVoiceName(e.target.value)}
+            >
+              <option value="">— Default (Piper) —</option>
+              {voices.map((v) => (
+                <option key={v.name} value={v.name}>
+                  {v.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+      </div>
       <label htmlFor="call-requests">Enter Calls (Phone Number, Business Type - one per line):</label>
       <textarea
         id="call-requests"

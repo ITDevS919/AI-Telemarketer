@@ -30,6 +30,7 @@ from .vad_handler import VADHandler # Placeholder for your VAD engine
 from .conversation_manager import ConversationManager # To manage conversation flow
 
 # For audio resampling
+import numpy as np
 import torch
 import torchaudio.functional as F
 
@@ -294,19 +295,20 @@ async def update_dialer_settings_endpoint(settings: Dict[str, Any] = Body(...)) 
 class AddCallPayload(BaseModel):  # Changed from Dict[str, Any] to BaseModel
     phone_number: str
     business_type: str
-    caller_id: Optional[str] = None # Added default None for optional field
+    caller_id: Optional[str] = None  # Optional
+    scripted: Optional[bool] = None   # True = Version A (scripted), False = Version B (interactive)
+    voice_name: Optional[str] = None  # Cloned voice name for Version A (optional)
 
 @app.post("/api/calls", tags=["Calls"], summary="Add a new call to the queue")
 async def add_call_endpoint(payload: AddCallPayload = Body(...)) -> Dict[str, Any]:
-    # FastAPI will now automatically validate the payload against the Pydantic model
-    # You can access fields directly, e.g., payload.phone_number
-    
     dialer = get_dialer_system()
     try:
         call_record_dict = await dialer.add_call(
-            phone_number=payload.phone_number, # Access via attribute
-            business_type=payload.business_type, # Access via attribute
-            caller_id=payload.caller_id # Access via attribute
+            phone_number=payload.phone_number,
+            business_type=payload.business_type,
+            caller_id=payload.caller_id,
+            scripted=payload.scripted,
+            voice_name=payload.voice_name,
         )
         return call_record_dict
     except Exception as e:
@@ -776,8 +778,8 @@ async def websocket_stream_endpoint(
                     pcm_8k_s16_bytes = audioop.ulaw2lin(mulaw_bytes, 2)
 
                     # 3. Resample 8kHz PCM to 16kHz PCM for VAD/STT
-                    # Convert bytes to float tensor, normalize
-                    pcm_8k_s16_tensor = torch.frombuffer(pcm_8k_s16_bytes, dtype=torch.int16).float() / 32768.0
+                    # Convert bytes to float tensor, normalize (torch.from_numpy expects ndarray)
+                    pcm_8k_s16_tensor = torch.from_numpy(np.frombuffer(pcm_8k_s16_bytes, dtype=np.int16)).float() / 32768.0
                     
                     # Resample (input tensor needs to be 1D or 2D [channels, samples])
                     # If pcm_8k_s16_tensor is already 1D, it's fine. Add channel dim if needed: .unsqueeze(0)
@@ -788,7 +790,7 @@ async def websocket_stream_endpoint(
                     
                     # Convert back to bytes (16-bit PCM for VAD/STT)
                     # Remove channel dimension if added: .squeeze(0)
-                    pcm_16k_s16_bytes = (pcm_16k_s16_tensor.squeeze(0) * 32768.0).to(torch.int16).numpy().tobytes()
+                    pcm_16k_s16_bytes = (pcm_16k_s16_tensor.squeeze(0) * 32768.0).clamp(-32768, 32767).to(torch.int16).numpy().tobytes()
                     
                     # --- VAD Processing ---
                     # Accumulate audio for VAD. VAD typically processes in fixed-size chunks (e.g., 30ms at 16kHz = 480 samples = 960 bytes)

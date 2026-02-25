@@ -16,6 +16,7 @@ import asyncio
 import os
 from typing import Optional, List
 
+import numpy as np
 import torch
 import torchaudio.functional as F
 from fastapi import WebSocket
@@ -136,7 +137,7 @@ class TTSHandler:
                         logger.error(f"[{call_sid}] ElevenLabs synthesis failed, falling back to Piper")
                         use_cloned_voice = False
                     else:
-                        pcm_tensor = torch.frombuffer(pcm_data, dtype=torch.int16).float() / 32768.0
+                        pcm_tensor = torch.from_numpy(np.frombuffer(pcm_data, dtype=np.int16)).float() / 32768.0
                         pcm_tensor_8k = F.resample(
                             pcm_tensor.unsqueeze(0),
                             orig_freq=22050,
@@ -179,7 +180,7 @@ class TTSHandler:
                                     pcm_piper = wav_read_file.readframes(wav_read_file.getnframes())
                             if not pcm_piper:
                                 continue
-                            pcm_t = torch.frombuffer(pcm_piper, dtype=torch.int16).float() / 32768.0
+                            pcm_t = torch.from_numpy(np.frombuffer(pcm_piper, dtype=np.int16)).float() / 32768.0
                             if self.piper_sample_rate != target_sample_rate:
                                 pcm_t = F.resample(
                                     pcm_t.unsqueeze(0),
@@ -199,7 +200,7 @@ class TTSHandler:
                         if not pcm_data_piper_sr:
                             logger.error(f"[{call_sid}] TTS produced no PCM for: '{text_to_speak[:50]}...'")
                             return
-                        pcm_s16_tensor_piper = torch.frombuffer(pcm_data_piper_sr, dtype=torch.int16).float() / 32768.0
+                        pcm_s16_tensor_piper = torch.from_numpy(np.frombuffer(pcm_data_piper_sr, dtype=np.int16)).float() / 32768.0
                         if self.piper_sample_rate != target_sample_rate:
                             pcm_s16_tensor_8k = F.resample(
                                 pcm_s16_tensor_piper.unsqueeze(0),

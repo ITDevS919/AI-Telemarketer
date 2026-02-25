@@ -49,6 +49,10 @@ export interface AddCallPayload {
   phone_number: string;
   business_type: string;
   caller_id?: string;
+  /** true = Version A (scripted), false = Version B (interactive) */
+  scripted?: boolean;
+  /** Cloned voice name for Version A (optional) */
+  voice_name?: string;
 }
 
 export const addCall = (payload: AddCallPayload) =>

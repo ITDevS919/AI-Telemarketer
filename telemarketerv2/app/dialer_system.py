@@ -200,28 +200,37 @@ class DialerSystem:
         except Exception as e:
             logger.error(f"Error loading pending calls: {e}")
     
-    async def add_call(self, phone_number: str, business_type: str, caller_id: str = None) -> Dict:
+    async def add_call(
+        self,
+        phone_number: str,
+        business_type: str,
+        caller_id: str = None,
+        scripted: Optional[bool] = None,
+        voice_name: Optional[str] = None,
+    ) -> Dict:
         """
         Add a call to the queue.
-        
+
         Args:
             phone_number: Phone number to call
             business_type: Type of business for script selection
             caller_id: Caller ID to use (optional)
-            
+            scripted: True = Version A (scripted), False = Version B (interactive). None = use env DIALER_SCRIPTED_MODE
+            voice_name: Cloned voice name for Version A (optional). None = use env DIALER_SCRIPTED_VOICE_NAME or Piper
+
         Returns:
             Dict with call details including call_id
         """
         if not caller_id:
             caller_id = self.twilio_phone_number or "+441234567890"
-            
+
         # Check if call is permitted by regulations
         permitted, reason, violation_type = await self.regulations_manager.check_call_permitted(
             phone_number, caller_id
         )
-        
+
         call_id = f"CA{uuid.uuid4().hex[:12].upper()}"
-        
+
         # Create call record
         call_record = {
             "call_id": call_id,
@@ -235,15 +244,15 @@ class DialerSystem:
             "last_error": None if permitted else reason,
             "regulation_violation": violation_type
         }
-        
+
         # Save to database
         self._save_call_record(call_record)
-        
+
         if not permitted:
             logger.info(f"Call to {phone_number} blocked by regulations: {reason}")
             return call_record
-        
-        # Add to queue
+
+        # Add to queue (include scripted/voice_name so _make_call uses them in stream URL)
         call_item = {
             "call_id": call_id,
             "phone_number": phone_number,
@@ -251,12 +260,14 @@ class DialerSystem:
             "caller_id": caller_id,
             "retry_count": 0,
             "scheduled_time": datetime.datetime.now(),
-            "status": CallStatus.QUEUED.value
+            "status": CallStatus.QUEUED.value,
+            "scripted": scripted,
+            "voice_name": (voice_name or "").strip() or None,
         }
-        
+
         await self.call_queue.put(call_item)
-        logger.info(f"Added call to {phone_number} to queue with ID {call_id}")
-        
+        logger.info(f"Added call to {phone_number} to queue with ID {call_id} (scripted={scripted}, voice_name={voice_name or 'default'})")
+
         return call_record
     
     async def add_batch_calls(self, calls: List[Dict]) -> Dict:
@@ -280,8 +291,13 @@ class DialerSystem:
             phone_number = call["phone_number"]
             business_type = call["business_type"]
             caller_id = call.get("caller_id", self.twilio_phone_number or "+441234567890")
-            
-            call_result = await self.add_call(phone_number, business_type, caller_id)
+            scripted = call.get("scripted")
+            voice_name = call.get("voice_name")
+
+            call_result = await self.add_call(
+                phone_number, business_type, caller_id,
+                scripted=scripted, voice_name=voice_name,
+            )
             
             if call_result["status"] == CallStatus.QUEUED.value:
                 results["queued"] += 1
