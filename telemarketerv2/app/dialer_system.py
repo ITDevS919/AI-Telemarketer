@@ -616,18 +616,23 @@ class DialerSystem:
             if self.twilio_client and TWILIO_AVAILABLE and self.ngrok_websocket_url:
                 from twilio.twiml.voice_response import VoiceResponse, Connect, Stream
 
-                # Construct TwiML to connect to WebSocket stream (optional: voice_name + scripted for Version A)
+                # Construct TwiML to connect to WebSocket stream.
+                # Twilio strips URL query params for Media Streams; pass call_id, business_type, etc. via
+                # <Parameter> so they appear in the "start" message's customParameters.
                 response = VoiceResponse()
                 connect = Connect()
                 voice_name = call.get("voice_name") or os.environ.get("DIALER_SCRIPTED_VOICE_NAME", "")
                 use_scripted = call.get("scripted")
                 scripted_mode = use_scripted if use_scripted is not None else (os.environ.get("DIALER_SCRIPTED_MODE", "").lower() in ("true", "1", "yes"))
-                stream_url = f"{self.ngrok_websocket_url}/ws/stream?business_type={quote_plus(business_type or '')}&call_id={quote_plus(call_id)}"
+                stream_url = f"{self.ngrok_websocket_url}/ws/stream"
+                stream = Stream(url=stream_url)
+                stream.parameter("call_id", call_id)
+                stream.parameter("business_type", business_type or "")
                 if voice_name:
-                    stream_url += f"&voice_name={quote_plus(voice_name)}"
+                    stream.parameter("voice_name", voice_name)
                 if scripted_mode:
-                    stream_url += "&scripted=1"
-                connect.append(Stream(url=stream_url))
+                    stream.parameter("scripted", "1")
+                connect.append(stream)
                 response.append(connect)
                 response.pause(length=60)
 

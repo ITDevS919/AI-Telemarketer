@@ -39,6 +39,13 @@ class VADHandler:
         else:
             self.device = "cuda" if torch.cuda.is_available() else "cpu"
         
+        # Silero VAD requires a minimum chunk duration (~32ms at 16kHz).
+        # sr / len(x) > 31.25 triggers "Input audio chunk is too short" inside the model.
+        # For sr=16000 this means len(x) < 512 samples (~1024 bytes at int16).
+        # We pre-compute a safe minimum in bytes and will skip shorter chunks.
+        self.min_chunk_samples = int(self.sample_rate / 31.25)  # ~512 for 16kHz
+        self.min_chunk_bytes = self.min_chunk_samples * 2       # 16-bit PCM
+
         logger.info(f"Loading Silero VAD model onto device '{self.device}'...")
         try:
             # Ensure torch.hub.set_dir() is configured if needed, or models are pre-downloaded.
@@ -72,6 +79,11 @@ class VADHandler:
             return False
 
         try:
+            # Skip chunks that are too short for Silero; treat as silence.
+            if len(audio_chunk_bytes) < self.min_chunk_bytes:
+                # This is expected at start/end of speech; keep logs quiet.
+                return False
+
             # Convert PCM 16-bit bytes to float32 tensor (numpy buffer then torch; from_numpy expects ndarray)
             audio_int16 = torch.from_numpy(np.frombuffer(audio_chunk_bytes, dtype=np.int16))
             audio_float32 = audio_int16.to(torch.float32) / 32768.0

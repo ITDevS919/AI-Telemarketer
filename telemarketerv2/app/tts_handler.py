@@ -68,7 +68,9 @@ class TTSHandler:
         stream_sid: str,
         call_sid: str,
     ) -> None:
-        """Send 16-bit PCM at 8kHz in 20ms mu-law frames (real-time TTS delivery)."""
+        """Send 16-bit PCM at 8kHz in 20ms mu-law frames. Optionally pace at real-time so Twilio plays correctly."""
+        frame_sec = TTS_FRAME_MS / 1000.0
+        pace_frames = os.getenv("REALTIME_TTS_PACE_FRAMES", "true").lower() in ("true", "1", "yes")
         n = len(pcm_data_8k)
         offset = 0
         while offset < n:
@@ -86,6 +88,8 @@ class TTSHandler:
                 "media": {"payload": base64_mulaw},
             }
             await websocket.send_text(json.dumps(media_message))
+            if pace_frames:
+                await asyncio.sleep(frame_sec)
         logger.debug(f"[{call_sid}] Streamed {offset} bytes in 20ms frames")
 
     @staticmethod
@@ -137,7 +141,7 @@ class TTSHandler:
                         logger.error(f"[{call_sid}] ElevenLabs synthesis failed, falling back to Piper")
                         use_cloned_voice = False
                     else:
-                        pcm_tensor = torch.from_numpy(np.frombuffer(pcm_data, dtype=np.int16)).float() / 32768.0
+                        pcm_tensor = torch.from_numpy(np.frombuffer(pcm_data, dtype=np.int16).copy()).float() / 32768.0
                         pcm_tensor_8k = F.resample(
                             pcm_tensor.unsqueeze(0),
                             orig_freq=22050,
@@ -173,6 +177,9 @@ class TTSHandler:
                                 continue
                             with io.BytesIO() as wav_io:
                                 with wave.open(wav_io, "wb") as wav_file:
+                                    wav_file.setnchannels(1)
+                                    wav_file.setsampwidth(2)
+                                    wav_file.setframerate(self.piper_sample_rate)
                                     self.tts_voice.synthesize(sent, wav_file)
                                 full_wav_bytes = wav_io.getvalue()
                             with io.BytesIO(full_wav_bytes) as wav_read_io:
@@ -192,6 +199,9 @@ class TTSHandler:
                     else:
                         with io.BytesIO() as wav_io:
                             with wave.open(wav_io, "wb") as wav_file:
+                                wav_file.setnchannels(1)
+                                wav_file.setsampwidth(2)
+                                wav_file.setframerate(self.piper_sample_rate)
                                 self.tts_voice.synthesize(text_to_speak, wav_file)
                             full_wav_bytes = wav_io.getvalue()
                         with io.BytesIO(full_wav_bytes) as wav_read_io:

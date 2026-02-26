@@ -12,7 +12,7 @@ import json     # Added for parsing WebSocket messages
 from pathlib import Path # Added for checking file paths
 import os # For reading environment variables for configuration
 
-from fastapi import FastAPI, HTTPException, Body, Path as FastApiPath, WebSocket, WebSocketDisconnect, File, UploadFile, Form  # Added WebSocket, WebSocketDisconnect, File, UploadFile, Form
+from fastapi import FastAPI, HTTPException, Body, Path as FastApiPath, WebSocket, WebSocketDisconnect, File, UploadFile, Form, Request  # Added WebSocket, WebSocketDisconnect, File, UploadFile, Form, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse, JSONResponse, StreamingResponse  # Or XMLResponse / audio streaming
 import uvicorn
@@ -673,8 +673,14 @@ async def synthesize_voice_endpoint(payload: VoiceSynthesizeRequest):
 
 # Twilio Webhook Endpoints
 @app.post("/twilio/status/{call_id_path}", tags=["Twilio Webhooks"], summary="Twilio Call Status Callback")
-async def twilio_status_webhook(request_data: Dict = Body(...), call_id_path: str = FastApiPath(..., alias="call_id_path")):
+async def twilio_status_webhook(request: Request, call_id_path: str = FastApiPath(..., alias="call_id_path")):
+    """
+    Twilio sends status callbacks as application/x-www-form-urlencoded by default.
+    Parse form data into a dict and pass it to DialerSystem.
+    """
     dialer = get_dialer_system()
+    form = await request.form()
+    request_data = dict(form)
     logger.info(f"Twilio status webhook for call_id {call_id_path}, data: {request_data}")
     try:
         # DialerSystem.handle_twilio_webhook returns a dict like {"twiml": "<Response>...</Response>"}
@@ -684,12 +690,16 @@ async def twilio_status_webhook(request_data: Dict = Body(...), call_id_path: st
     except Exception as e:
         logger.error(f"Error in Twilio status webhook for call {call_id_path}: {e}", exc_info=True)
         # Twilio expects a 2xx response, so even on error, consider what to return.
-        # Returning a generic TwiML response might be better than a 500 for Twilio.
-        return PlainTextResponse("<Response><Say>An error occurred. Please try again later.</Say></Response>", media_type="application/xml", status_code=200) # Or 500 if that makes more sense for debugging
+        return PlainTextResponse("<Response><Say>An error occurred. Please try again later.</Say></Response>", media_type="application/xml", status_code=200)
 
 @app.post("/twilio/input/{call_id_path}", tags=["Twilio Webhooks"], summary="Twilio Input Callback (Speech/DTMF)")
-async def twilio_input_webhook(request_data: Dict = Body(...), call_id_path: str = FastApiPath(..., alias="call_id_path")):
+async def twilio_input_webhook(request: Request, call_id_path: str = FastApiPath(..., alias="call_id_path")):
+    """
+    Twilio sends Gather / input callbacks as application/x-www-form-urlencoded.
+    """
     dialer = get_dialer_system()
+    form = await request.form()
+    request_data = dict(form)
     logger.info(f"Twilio input webhook for call_id {call_id_path}, data: {request_data}")
     try:
         response_content = await dialer.handle_twilio_input(call_id_path, request_data)
@@ -715,14 +725,28 @@ async def websocket_stream_endpoint(
         return
 
     await websocket.accept()
-    scripted_mode = scripted and scripted.lower() in ("true", "1", "yes")
-    logger.info(f"WebSocket connection accepted for call_id: {call_id}, business_type: {business_type}, voice_name: {voice_name}, scripted: {scripted_mode}")
-    
-    # Store this websocket connection if DialerSystem needs to access it directly (e.g., to send proactive messages or hangup)
-    # This might involve a WebSocketManager class or a dict in DialerSystem
-    # For now, assume ConversationManager will handle TTS via its tts_handler
 
-    call_sid_internal = call_id # From query param
+    # Twilio connects with query params in the URL; FastAPI may not inject them for WebSocket.
+    # Read from WebSocket query string so we have call_id for conversation and status.
+    query_params = getattr(websocket, "query_params", None)
+    if query_params is not None:
+        call_sid_internal = call_id or (query_params.get("call_id") if isinstance(query_params.get("call_id"), str) else None)
+        business_type = business_type or query_params.get("business_type")
+        voice_name = voice_name or query_params.get("voice_name")
+        scripted = scripted or query_params.get("scripted")
+    else:
+        from urllib.parse import parse_qs
+        raw = (websocket.scope.get("query_string") or b"").decode("utf-8")
+        parsed = parse_qs(raw)
+        def first(key): return (parsed.get(key) or [None])[0]
+        call_sid_internal = call_id or first("call_id")
+        business_type = business_type or first("business_type")
+        voice_name = voice_name or first("voice_name")
+        scripted = scripted or first("scripted")
+
+    scripted_mode = scripted and str(scripted).lower() in ("true", "1", "yes")
+    logger.info(f"WebSocket connection accepted for call_id: {call_sid_internal}, business_type: {business_type}, voice_name: {voice_name}, scripted: {scripted_mode}")
+
     stream_sid_twilio: Optional[str] = None # Will be received in the 'start' message from Twilio
 
     # Audio accumulation buffer for VAD
@@ -746,9 +770,17 @@ async def websocket_stream_endpoint(
                 logger.info(f"[{call_sid_internal}] Twilio WebSocket stream connected: {message}")
             
             elif event == "start":
-                stream_sid_twilio = message.get("start", {}).get("streamSid")
-                logger.info(f"[{call_sid_internal}] Twilio WebSocket stream started. Stream SID: {stream_sid_twilio}")
-                # Potentially initialize conversation here if not done earlier
+                start_payload = message.get("start") or {}
+                stream_sid_twilio = start_payload.get("streamSid")
+                # Twilio strips URL query params; custom params are sent in start.customParameters.
+                custom = start_payload.get("customParameters") or {}
+                call_sid_internal = custom.get("call_id") or call_sid_internal
+                business_type = custom.get("business_type") or business_type
+                voice_name = custom.get("voice_name") or voice_name
+                scripted = custom.get("scripted") or scripted
+                scripted_mode = scripted and str(scripted).lower() in ("true", "1", "yes")
+                logger.info(f"[{call_sid_internal}] Twilio WebSocket stream started. Stream SID: {stream_sid_twilio}, business_type={business_type}, voice_name={voice_name}, scripted={scripted_mode}")
+                await asyncio.sleep(0.15)
                 if conversation_manager_instance:
                     await conversation_manager_instance.initialize_conversation(
                         call_sid=call_sid_internal,
@@ -778,8 +810,8 @@ async def websocket_stream_endpoint(
                     pcm_8k_s16_bytes = audioop.ulaw2lin(mulaw_bytes, 2)
 
                     # 3. Resample 8kHz PCM to 16kHz PCM for VAD/STT
-                    # Convert bytes to float tensor, normalize (torch.from_numpy expects ndarray)
-                    pcm_8k_s16_tensor = torch.from_numpy(np.frombuffer(pcm_8k_s16_bytes, dtype=np.int16)).float() / 32768.0
+                    # Convert bytes to float tensor; .copy() avoids PyTorch warning on non-writable buffer
+                    pcm_8k_s16_tensor = torch.from_numpy(np.frombuffer(pcm_8k_s16_bytes, dtype=np.int16).copy()).float() / 32768.0
                     
                     # Resample (input tensor needs to be 1D or 2D [channels, samples])
                     # If pcm_8k_s16_tensor is already 1D, it's fine. Add channel dim if needed: .unsqueeze(0)
@@ -793,15 +825,13 @@ async def websocket_stream_endpoint(
                     pcm_16k_s16_bytes = (pcm_16k_s16_tensor.squeeze(0) * 32768.0).clamp(-32768, 32767).to(torch.int16).numpy().tobytes()
                     
                     # --- VAD Processing ---
-                    # Accumulate audio for VAD. VAD typically processes in fixed-size chunks (e.g., 30ms at 16kHz = 480 samples = 960 bytes)
+                    # Accumulate audio for VAD. Silero expects fixed-size chunks:
+                    # for 16kHz sr it uses exactly 512 samples (== 1024 bytes of int16).
                     vad_audio_buffer.extend(pcm_16k_s16_bytes)
                     
                     # Define VAD constants here or globally if preferred
-                    VAD_CHUNK_SIZE_BYTES = 960 # 30ms at 16kHz, 16-bit (Silero VAD itself doesn't strictly need this for its direct probability output on a chunk)
-                                               # but useful if you were to chunk for it manually using get_speech_timestamps over longer audio.
-                                               # For this implementation, process_audio_chunk takes whatever current_chunk is.
-                    VAD_MIN_SPEECH_BYTES = 1500 # Example: Minimum speech duration in bytes for STT (e.g., ~300ms at 16kHz, 16-bit mono)
-                                               # Adjust this based on desired sensitivity to short utterances.
+                    VAD_CHUNK_SIZE_BYTES = 1024  # 512 samples at 16kHz, 16-bit (Silero requirement)
+                    VAD_MIN_SPEECH_BYTES = 1500  # Minimum speech duration in bytes for STT (e.g., ~300ms at 16kHz, 16-bit mono)
 
                     # Process in VAD chunks (example chunk size, adjust to your VAD's needs)
                     # The VAD_CHUNK_SIZE_BYTES here is more about how frequently we check VAD on accumulating audio.

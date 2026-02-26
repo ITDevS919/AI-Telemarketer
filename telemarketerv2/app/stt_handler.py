@@ -36,6 +36,16 @@ class STTHandler:
             logger.error(f"Failed to load FasterWhisper model \'{self.model_name}\': {e}", exc_info=True)
             self.model = None 
 
+    def _transcribe_sync(self, audio_np: np.ndarray):
+        """
+        Synchronous wrapper used by run_in_executor so we can pass keyword args.
+        """
+        return self.model.transcribe(
+            audio_np,
+            language="en",  # Make configurable if needed
+            beam_size=5,    # A common default, can be tuned
+        )
+
     async def transcribe_audio_bytes(self, audio_bytes: bytes) -> str:
         """
         Transcribes audio bytes to text using FasterWhisper.
@@ -59,14 +69,12 @@ class STTHandler:
             audio_np = np.frombuffer(audio_bytes, dtype=np.int16).astype(np.float32) / 32768.0
             
             loop = asyncio.get_running_loop()
-            # FasterWhisper's transcribe is CPU-bound for the actual transcription part,
-            # but model loading and some ops might involve GIL. run_in_executor is still good.
+            # FasterWhisper's transcribe is CPU-bound; run it in a thread pool.
+            # run_in_executor only accepts positional args, so we wrap in _transcribe_sync.
             segments, info = await loop.run_in_executor(
-                None, 
-                self.model.transcribe, 
+                None,
+                self._transcribe_sync,
                 audio_np,
-                language="en", # Make configurable if needed
-                beam_size=5 # A common default, can be tuned
             )
             
             # Concatenate text from all segments

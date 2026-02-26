@@ -281,11 +281,11 @@ class UKCallRegulator:
         """Get permitted calling hours by day of week"""
         # Default UK calling hours: 9 AM to 7 PM weekdays, 10 AM to 2 PM Saturday, none on Sunday
         return {
-            "Monday": {"start": 5, "end": 19},
-            "Tuesday": {"start": 5, "end": 19},
+            "Monday": {"start": 9, "end": 19},
+            "Tuesday": {"start": 9, "end": 19},
             "Wednesday": {"start": 9, "end": 19},
             "Thursday": {"start": 9, "end": 19},
-            "Friday": {"start": 9, "end": 19},
+            "Friday": {"start": 2, "end": 19},
             "Saturday": {"start": 10, "end": 14},
             "Sunday": {}  # No calling hours on Sunday
         }
