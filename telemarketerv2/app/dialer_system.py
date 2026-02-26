@@ -637,7 +637,9 @@ class DialerSystem:
                     to=phone_number,
                     from_=caller_id,
                     twiml=str(response),
-                    status_callback=f"{self.twilio_webhook_url}/status/{call_id}",
+                    # Twilio webhook base URL should be the ngrok HTTPS root; append the FastAPI path.
+                    # Our FastAPI route is `/twilio/status/{call_id_path}`, so include `/twilio/status/` here.
+                    status_callback=f"{self.twilio_webhook_url}/twilio/status/{call_id}",
                     machine_detection='Enable',
                 )
                 actual_twilio_sid = twilio_call.sid
