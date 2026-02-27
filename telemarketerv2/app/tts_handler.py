@@ -30,6 +30,14 @@ TTS_FRAME_MS = 20
 TTS_SAMPLE_RATE_TWILIO = 8000
 TTS_FRAME_BYTES_PCM = (TTS_FRAME_MS * TTS_SAMPLE_RATE_TWILIO // 1000) * 2  # 320
 
+# Pitch correction: TTS_PITCH_FACTOR < 1.0 lowers pitch (e.g. 0.9 = ~10% lower), > 1.0 raises it
+def _parse_pitch_factor() -> float:
+    try:
+        v = float(os.getenv("TTS_PITCH_FACTOR", "1.0"))
+        return max(0.5, min(2.0, v))
+    except (TypeError, ValueError):
+        return 1.0
+
 # Import voice cloning handler (optional)
 try:
     from .voice_cloning_handler import VoiceCloningHandler
@@ -61,6 +69,22 @@ class TTSHandler:
         else:
             logger.info(f"TTSHandler initialized with Piper voice only. Sample rate: {self.piper_sample_rate}Hz")
 
+    def _apply_pitch_correction(self, pcm_data_8k: bytes) -> bytes:
+        """Apply TTS_PITCH_FACTOR: < 1.0 lowers pitch, > 1.0 raises it. Returns 8kHz 16-bit PCM."""
+        factor = _parse_pitch_factor()
+        if factor == 1.0:
+            return pcm_data_8k
+        # Resample so that when played at 8k the perceived pitch is scaled by factor
+        # new_freq = 8000 / factor -> more samples (factor<1) = lower pitch, fewer (factor>1) = higher
+        orig_freq = TTS_SAMPLE_RATE_TWILIO
+        new_freq = int(orig_freq / factor)
+        new_freq = max(4000, min(16000, new_freq))
+        arr = np.frombuffer(pcm_data_8k, dtype=np.int16).copy()
+        t = torch.from_numpy(arr).float() / 32768.0
+        resampled = F.resample(t.unsqueeze(0), orig_freq=orig_freq, new_freq=new_freq).squeeze(0)
+        out = (resampled * 32768.0).clamp(-32768, 32767).to(torch.int16).numpy().tobytes()
+        return out
+
     async def _send_pcm_as_stream(
         self,
         websocket: WebSocket,
@@ -69,6 +93,7 @@ class TTSHandler:
         call_sid: str,
     ) -> None:
         """Send 16-bit PCM at 8kHz in 20ms mu-law frames. Optionally pace at real-time so Twilio plays correctly."""
+        pcm_data_8k = self._apply_pitch_correction(pcm_data_8k)
         frame_sec = TTS_FRAME_MS / 1000.0
         pace_frames = os.getenv("REALTIME_TTS_PACE_FRAMES", "true").lower() in ("true", "1", "yes")
         n = len(pcm_data_8k)
@@ -157,6 +182,7 @@ class TTSHandler:
                         if use_streaming:
                             await self._send_pcm_as_stream(websocket, pcm_data_8k, stream_sid, call_sid)
                         else:
+                            pcm_data_8k = self._apply_pitch_correction(pcm_data_8k)
                             mulaw_bytes = audioop.lin2ulaw(pcm_data_8k, 2)
                             base64_mulaw = base64.b64encode(mulaw_bytes).decode("utf-8")
                             await websocket.send_text(
@@ -223,6 +249,7 @@ class TTSHandler:
                         if use_streaming:
                             await self._send_pcm_as_stream(websocket, pcm_data_8k, stream_sid, call_sid)
                         else:
+                            pcm_data_8k = self._apply_pitch_correction(pcm_data_8k)
                             mulaw_bytes = audioop.lin2ulaw(pcm_data_8k, 2)
                             base64_mulaw = base64.b64encode(mulaw_bytes).decode("utf-8")
                             await websocket.send_text(
