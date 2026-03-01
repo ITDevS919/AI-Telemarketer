@@ -75,7 +75,13 @@ class DialerSystem:
         self.max_concurrent_calls = max_concurrent_calls
         self.max_retries = max_retries
         self.retry_delay_seconds = retry_delay_seconds
-        self.call_timeout_seconds = call_timeout_seconds
+        # How long we consider a call "no-answer" from our side.
+        # For real Twilio calls, Twilio's status callbacks are the source of truth; this mainly helps
+        # simulated calls or environments where callbacks are unavailable.
+        try:
+            self.call_timeout_seconds = int(os.environ.get("CALL_TIMEOUT_SECONDS", str(call_timeout_seconds)))
+        except (TypeError, ValueError):
+            self.call_timeout_seconds = call_timeout_seconds
         
         # Initialize Twilio client if credentials are available
         self.twilio_client = None
@@ -551,8 +557,14 @@ class DialerSystem:
                     call_info = self.call_history.get(call_id)
                     if not call_info:
                         continue
-                        
-                    # Check for timeout
+
+                    # If this is a real Twilio call, rely on Twilio's callbacks for terminal states
+                    # (no-answer/busy/failed/completed). Avoid pre-empting with our own timeout, which
+                    # can schedule retries prematurely.
+                    if call_info.get("twilio_call_sid"):
+                        continue
+
+                    # Check for timeout (primarily for simulated calls)
                     if (call_info["status"] == CallStatus.IN_PROGRESS.value and
                         (datetime.datetime.now() - call_info["started_at"]).total_seconds() > self.call_timeout_seconds):
                         # Call timed out
