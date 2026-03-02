@@ -22,13 +22,11 @@ var/
 
 # Virtual Environment
 venv/
-.env
 .venv
 ENV/
 
 # IDE specific files
 .idea/
-.vscode/
 *.swp
 *.swo
 telemarketerv2/data/models/
@@ -41,5 +39,8 @@ tmp_output/
 *.ogg
 
 # Secrets
-.env
 *.key telemarketerv2/data/models/
+config.bat
+node_modules
+temp_auto_push.bat
+temp_interactive_push.bat

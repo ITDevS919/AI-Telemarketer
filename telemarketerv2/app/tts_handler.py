@@ -70,10 +70,19 @@ class TTSHandler:
             logger.info(f"TTSHandler initialized with Piper voice only. Sample rate: {self.piper_sample_rate}Hz")
 
     def _apply_pitch_correction(self, pcm_data_8k: bytes) -> bytes:
-        """Apply TTS_PITCH_FACTOR: < 1.0 lowers pitch, > 1.0 raises it. Returns 8kHz 16-bit PCM."""
+        """Apply TTS_PITCH_FACTOR: < 1.0 lowers pitch, > 1.0 raises it. Returns 8kHz 16-bit PCM.
+        
+        WARNING: Pitch correction via resampling degrades audio quality.
+        For clearest voice, set TTS_PITCH_FACTOR=1.0 in .env.
+        """
         factor = _parse_pitch_factor()
         if factor == 1.0:
             return pcm_data_8k
+        
+        # Skip pitch correction if factor is very close to 1.0 (avoid unnecessary processing)
+        if 0.98 <= factor <= 1.02:
+            return pcm_data_8k
+            
         # Resample so that when played at 8k the perceived pitch is scaled by factor
         # new_freq = 8000 / factor -> more samples (factor<1) = lower pitch, fewer (factor>1) = higher
         orig_freq = TTS_SAMPLE_RATE_TWILIO
@@ -81,7 +90,9 @@ class TTSHandler:
         new_freq = max(4000, min(16000, new_freq))
         arr = np.frombuffer(pcm_data_8k, dtype=np.int16).copy()
         t = torch.from_numpy(arr).float() / 32768.0
-        resampled = F.resample(t.unsqueeze(0), orig_freq=orig_freq, new_freq=new_freq).squeeze(0)
+        # Use higher quality resampling
+        resampled = F.resample(t.unsqueeze(0), orig_freq=orig_freq, new_freq=new_freq, 
+                              lowpass_filter_width=64).squeeze(0)
         out = (resampled * 32768.0).clamp(-32768, 32767).to(torch.int16).numpy().tobytes()
         return out
 
