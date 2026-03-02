@@ -22,7 +22,6 @@ var/
 
 # Virtual Environment
 venv/
-.env
 .venv
 ENV/
 
@@ -41,5 +40,6 @@ tmp_output/
 *.ogg
 
 # Secrets
-.env
 *.key telemarketerv2/data/models/
+config.bat
+node_modules
