@@ -27,7 +27,6 @@ ENV/
 
 # IDE specific files
 .idea/
-.vscode/
 *.swp
 *.swo
 telemarketerv2/data/models/
