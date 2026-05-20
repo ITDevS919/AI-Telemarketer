@@ -101,4 +101,4 @@ Nova2 will need to be extended to include an API endpoint (likely using Flask or
 * Implementation of error handling and logging mechanisms in both the `twilio_manager` and Nova2.
 * Development of a user interface for managing leads and campaigns.
 * Adding email sending capability (either via Twilio SendGrid or another service) triggered by `twilio_manager`.
-* Refining the logic for switching between appointment booking, WhatsApp, and email goals.
+* Refining the logic for switching between appointment booking, WhatsApp, and email goals.ddddd
